@@ -21,6 +21,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `npm run dev` starts the dev server at `http://localhost:5173/`.
 - `npm run build` type-checks (strict) and builds into `dist/`. Run it before committing.
 - `npm run preview` serves the built `dist/` locally.
+- `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
 
 ## Open questions
 - Vite's minimum Node version (I have Node v24.14.1).

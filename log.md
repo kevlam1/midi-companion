@@ -83,6 +83,26 @@ A browser-based MIDI player and Synthesia-style visualizer. I load a MIDI file, 
 
 ---
 
+## 5. Parsing a MIDI file (2026-10-12)
+
+**What I asked for**
+- Asked Claude Code to check `@tonejs/midi` before installing it: its license, what it pulls in, and its real API.
+- Asked whether I really had to record my own test file, or if one already existed online.
+
+**What changed**
+- Installed `@tonejs/midi` 2.0.28 (MIT). It pulls in `midi-file` (MIT) and `array-flatten` (MIT). Claude read its source to confirm it takes the `ArrayBuffer` a browser file picker gives, and that it ships TypeScript types.
+- Added `scripts/make-test-midi.mjs`, which writes `test-files/c-major-scale.mid`: C4 to C5, one note every 0.5 s, each 0.5 s long, at 120 BPM.
+- Added a file picker to the page. It reads the file in the browser (nothing is uploaded) and prints the duration, tempo, tracks, and notes. This is a temporary debug view until the canvas exists.
+- Loaded the scale file on my page and got exactly what we expected: 4.000 s, 120 BPM, 1 track, 8 notes from C4 (60) at 0.000 s to C5 (72) at 3.500 s, each 0.500 s long.
+- Loaded the same file in midee.app and saw eight evenly spaced notes rising from C4 to C5, so a separate program agrees the file is right.
+
+**Decisions**
+- Generated the test file with a script instead of downloading one. I know every note because we wrote them, and it is my own file, so it is safe to commit. I will record a real one from my keyboard on Thursday, when Web MIDI input comes in, to test human timing.
+- Used `@tonejs/midi` instead of writing my own parser. It was last published in 2022, but the MIDI format has not changed, and handling tempo changes myself would cost most of a day.
+- Wrote the script as plain JavaScript (`.mjs`), since it is a one-off tool run by Node and not part of the app.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -98,3 +118,5 @@ A browser-based MIDI player and Synthesia-style visualizer. I load a MIDI file, 
 
 - Considered React. Chose no framework.
 - Considered PixiJS. Chose Canvas 2D for now.
+- Considered writing my own MIDI parser. Chose `@tonejs/midi`.
+- Considered downloading a test MIDI file. Generated my own instead.

@@ -2,6 +2,8 @@ import type { Key } from './keyboard.ts'
 
 export interface FallingNote {
   midi: number
+  name: string // e.g. "C4", used by the piano sound
+  velocity: number // 0 to 1
   time: number // start, in seconds
   duration: number // in seconds
 }

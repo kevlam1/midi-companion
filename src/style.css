@@ -87,6 +87,17 @@ body {
   text-align: right;
 }
 
+#credits {
+  padding: 0.25rem 1rem;
+  font-size: 0.75rem;
+  color: #777;
+  background: #1c1c1c;
+}
+
+#credits a {
+  color: #aaa;
+}
+
 #stage {
   display: block;
   flex: 1;

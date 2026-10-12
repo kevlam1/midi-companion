@@ -154,11 +154,59 @@ I started Tuesday's plan early since I had time left on Monday.
 
 ---
 
+## 8. Piano sound and sync (2026-10-12)
+
+I started Wednesday's plan the same day.
+
+**What I asked for**
+- Asked what "piano sound" meant, since I thought Tone.js sounds were already free to use.
+- Showed Claude midee's instrument list and asked where their sounds come from, using their public GitHub repo.
+- Said I was happy to credit the people who made the sounds.
+- After a lag spike in my song, asked for a real test of whether notes sound exactly when they hit the keys, since I can't judge that by eye.
+- Reminded Claude that this has to work on other people's laptops and PCs, not just mine.
+
+**What I learned**
+- Tone.js (MIT) is code. It can generate sounds itself, but those sound electronic. A real piano needs recordings (samples), which are separate files with their own license.
+- midee's grand piano is the Salamander Grand Piano by Alexander Holm (CC BY 3.0), loaded through `@tonejs/piano`. Some of their other instruments come from `nbrosowsky/tonejs-instruments` (samples CC BY 3.0), and the rest are generated with Tone.js. Claude only read their files to find the sources and copied nothing. Claude checked both licenses at the original sources.
+- CC BY 3.0 means free to use, including in my public repo, as long as I credit the creator.
+- `@tonejs/piano` needs Tone.js 14 and hasn't been updated since 2022, so it doesn't fit the current Tone.js 15.
+
+**What changed**
+- Installed `tone` 15.1.22 (MIT). Its dependencies are MIT, plus `tslib` (0BSD).
+- Added `src/piano.ts`, which plays the Salamander recordings through Tone.js's built-in `Sampler`, loaded from Tone.js's own site. There is a recording every third note, and Tone.js re-pitches the ones in between.
+- The clock now runs on the audio clock instead of `performance.now()`, so the picture and the sound share one clock.
+- Notes are queued 0.25 s ahead of when they're due. Pause, seek, and Restart stop all sound.
+- Added credits to the page and a Credits section to `README.md`.
+- The Play button says "Loading piano…" until the samples arrive. Browsers only allow sound after a click, so the audio starts on the first Play.
+- Added debug lines to the browser console: slow frames, a sync check (how many notes were queued late), and the audio latency.
+- After the first sync test, added a short "head start" after Play and seeking, and made notes queue the moment I click. The head start adapts to the device's audio latency (at least 50 ms), so it should also work on slower laptops and 60 Hz screens.
+
+**What I checked**
+- The sound is right. My song sounds the same as it does on midee.
+- Sync, first test: a full play-through queued every note ahead of time. Only Play and seek clicks made notes late, at worst 10.7 ms.
+- Sync, after the head start: 0 late across a dozen checks, while I paused, seeked, and restarted on purpose.
+- Lag spike: a cluster of slow frames (worst 46 ms) around 10.2 s, only on the first play. It did not come back on the second and third plays, so it was a one-off, not my song or the code.
+- The console errors (65 of them) were all `runtime.lastError` from a Chrome extension. Claude checked that our code never uses Chrome's extension messaging.
+
+**Decisions**
+- Tone.js's `Sampler` with the Salamander samples, instead of `@tonejs/piano`. That means one dependency and the current Tone.js. It is a simpler sound (one loudness level, no pedal noise), but it sounds right to me.
+- The samples load from Tone.js's site. If that ever goes down, I can copy them into the repo (allowed with credit).
+- The page's JavaScript grew from 36 KB to 268 KB because of Tone.js. That is fine for now.
+
+**Still to check**
+- The browser doesn't report the speaker delay (`outputLatency` came back "not reported" through Tone.js). A slow-motion phone video of the screen would measure it.
+- I can only test on my own PC. A second laptop would show whether the sync holds on other devices.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
 - **Scaffold command in PowerShell:** it ran `npm create vite@latest scaffold-tmp -- --template vanilla-ts`, but PowerShell 5.1 swallows the `--`, so `--template` never reached Vite's generator. It only worked because the generator also accepts the template name as a plain word. Claude caught the npm warning, checked the files to confirm it really was the TypeScript template, and told me.
 - **Co-author line on commits:** I had told Claude in my Portfolio project to leave the `Co-Authored-By: Claude` line out of commits, but that rule was saved only for the Portfolio folder, so this session never saw it. My first two commits here went to GitHub with the line. I had Claude rewrite those two commit messages (same files, new commit IDs) and force-push. To stop it from happening again, the rule is now in my shared `TCSS 490/CLAUDE.md`, which every artifact loads.
+- **Unclear explanation:** when Claude first raised the "piano sound" question, it didn't explain that Tone.js is code and samples are separate recordings with their own licenses, so I thought it was asking whether Tone.js was allowed. It explained again when I asked.
+- **Dev server:** Claude told me the local server was still running after it had actually hit its time limit and stopped. It corrected this when it noticed.
+- **Fixed 50 ms head start:** Claude first proposed a fixed 50 ms, tested only against my PC. When I pointed out it has to work on other people's devices, it changed the head start to adapt to each device.
 
 **My own mistakes**
 - Nothing yet.
@@ -173,3 +221,5 @@ I started Tuesday's plan early since I had time left on Monday.
 - Considered downloading a test MIDI file. Generated my own instead.
 - Measured the frame rate with a real song (steady 165 fps), so I dropped PixiJS for good.
 - Considered a floating, movable control bar like midee's. Moved it to Saturday's polish, with my own design.
+- Considered `@tonejs/piano` (the package midee uses). Dropped it because it needs the older Tone.js 14. Used Tone.js's `Sampler` with the same Salamander recordings instead.
+- Considered a generated synth sound. Chose real piano recordings.

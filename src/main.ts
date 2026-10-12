@@ -1,7 +1,9 @@
 import './style.css'
 import { Midi } from '@tonejs/midi'
+import { getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { layoutKeys, type Key } from './keyboard.ts'
+import { Piano } from './piano.ts'
 import { draw, type FallingNote } from './renderer.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -18,6 +20,12 @@ if (app) {
       <span id="fps"></span>
     </div>
     <canvas id="stage"></canvas>
+    <footer id="credits">
+      Piano sound:
+      <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank">Salamander Grand Piano</a>
+      by Alexander Holm,
+      <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank">CC BY 3.0</a>
+    </footer>
   `
   start(app)
 }
@@ -33,6 +41,8 @@ function start(app: HTMLDivElement): void {
   const ctx = canvas.getContext('2d')!
 
   const clock = new Clock()
+  const piano = new Piano()
+  let pianoReady = false
   let notes: FallingNote[] = []
   let duration = 0
   let keys = new Map<number, Key>()
@@ -40,6 +50,16 @@ function start(app: HTMLDivElement): void {
   let dragging = false // true while the seek slider is held, so the loop doesn't fight it
   let fpsFrames = 0
   let fpsSince = performance.now()
+  let lastFrameAt = 0
+  let latencyLogged = false
+
+  // Play stays disabled until both a song and the piano sound are loaded.
+  playButton.textContent = 'Loading piano…'
+  piano.ready.then(() => {
+    pianoReady = true
+    playButton.textContent = 'Play'
+    playButton.disabled = notes.length === 0
+  })
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0]
@@ -49,17 +69,27 @@ function start(app: HTMLDivElement): void {
     console.log(describe(file.name, midi))
 
     notes = midi.tracks
-      .flatMap((track) => track.notes.map((n) => ({ midi: n.midi, time: n.time, duration: n.duration })))
+      .flatMap((track) =>
+        track.notes.map((n) => ({
+          midi: n.midi,
+          name: n.name,
+          velocity: n.velocity,
+          time: n.time,
+          duration: n.duration,
+        })),
+      )
       .sort((a, b) => a.time - b.time)
     duration = midi.duration
 
     clock.pause()
     clock.seek(0)
-    playButton.disabled = false
+    piano.reset(notes, 0)
+    piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
+    playButton.disabled = !pianoReady
     restartButton.disabled = false
     seekSlider.disabled = false
     seekSlider.max = String(duration)
-    playButton.textContent = 'Play'
+    if (pianoReady) playButton.textContent = 'Play'
   })
 
   seekSlider.addEventListener('pointerdown', () => {
@@ -71,23 +101,40 @@ function start(app: HTMLDivElement): void {
     })
   }
   seekSlider.addEventListener('input', () => {
-    clock.seek(Number(seekSlider.value))
+    clock.seek(Number(seekSlider.value), clock.playing ? piano.headStart() : 0)
+    resync()
   })
 
-  playButton.addEventListener('click', () => {
+  playButton.addEventListener('click', async () => {
     if (clock.playing) {
       clock.pause()
+      piano.reset(notes, clock.time)
       playButton.textContent = 'Play'
+      logSyncStats()
     } else {
+      await startAudio() // browsers only allow sound after a click, so the audio starts here
+      if (!latencyLogged) {
+        logLatency()
+        latencyLogged = true
+      }
       if (clock.time >= duration) clock.seek(0)
-      clock.play()
+      clock.play(piano.headStart())
+      resync()
       playButton.textContent = 'Pause'
     }
   })
 
   restartButton.addEventListener('click', () => {
-    clock.seek(0)
+    clock.seek(0, clock.playing ? piano.headStart() : 0)
+    resync()
   })
+
+  // After Play or a seek: silence the piano, then queue the first notes right away
+  // instead of waiting for the next frame (which is slower on 60 Hz screens).
+  function resync(): void {
+    piano.reset(notes, clock.time)
+    if (clock.playing) piano.schedule(notes, clock)
+  }
 
   function frame(): void {
     // Match the canvas to its on-screen size in real pixels so it stays sharp.
@@ -103,10 +150,13 @@ function start(app: HTMLDivElement): void {
       keysWidth = width
     }
 
+    const queued = clock.playing ? piano.schedule(notes, clock) : 0
+
     if (clock.playing && clock.time >= duration) {
       clock.pause()
       clock.seek(duration)
       playButton.textContent = 'Play'
+      logSyncStats()
     }
 
     const time = clock.time
@@ -117,9 +167,18 @@ function start(app: HTMLDivElement): void {
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
     seekSlider.style.setProperty('--progress', `${progress}%`)
 
+    // Debug: log any frame that took over 25 ms, with the song time, to find lag spikes.
+    const now = performance.now()
+    if (lastFrameAt > 0 && clock.playing && now - lastFrameAt > 25) {
+      console.warn(
+        `Slow frame: ${(now - lastFrameAt).toFixed(0)} ms at song time ${time.toFixed(2)} s ` +
+          `(${queued} notes queued this frame)`,
+      )
+    }
+    lastFrameAt = now
+
     // Frames drawn per second, updated twice a second.
     fpsFrames++
-    const now = performance.now()
     if (now - fpsSince >= 500) {
       fpsLabel.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsSince))} fps`
       fpsFrames = 0
@@ -130,6 +189,26 @@ function start(app: HTMLDivElement): void {
   }
 
   requestAnimationFrame(frame)
+
+  // Debug: did every note get queued before it was due?
+  function logSyncStats(): void {
+    const { queued, late, worstLateMs } = piano.stats
+    console.log(
+      `Sync check: ${queued} notes queued, ${late} late` +
+        (late > 0 ? `, worst ${worstLateMs.toFixed(1)} ms late` : ' (all queued ahead of time)'),
+    )
+  }
+
+  // Debug: the browser's estimate of the delay between our audio and your speakers.
+  // Tone.js's types don't list outputLatency, and it may be missing at runtime, so read it carefully.
+  function logLatency(): void {
+    const raw = getContext().rawContext as unknown as { baseLatency?: number; outputLatency?: number }
+    const ms = (s?: number): string => (typeof s === 'number' ? `${(s * 1000).toFixed(1)} ms` : 'not reported')
+    console.log(
+      `Audio latency: base ${ms(raw.baseLatency)}, output ${ms(raw.outputLatency)}; ` +
+        `head start after Play/seek: ${ms(piano.headStart())}`,
+    )
+  }
 }
 
 // Debug summary printed to the browser console when a file loads.

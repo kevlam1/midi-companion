@@ -24,7 +24,12 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
 
 ## Open questions
-- Vite's minimum Node version (I have Node v24.14.1).
 - Which browsers support Web MIDI (check MDN). Test in Chrome or Edge.
 - How my keyboard connects to the PC.
-- Piano sound: which library or samples, and their licenses.
+- Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC.
+
+## Credits rule
+Any new sound samples or assets need their license checked and a credit added to the page footer and `README.md`. Current: Salamander Grand Piano by Alexander Holm (CC BY 3.0).
+
+## Debugging
+The browser console shows "Slow frame", "Sync check", and "Audio latency" lines. "Sync check" should always say 0 late.

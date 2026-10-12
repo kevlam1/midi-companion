@@ -39,13 +39,34 @@ A browser-based MIDI player and Synthesia-style visualizer. I load a MIDI file, 
 - Added `CLAUDE.md` with the goal, stack, rules, and open questions.
 - Added `.gitignore` for `node_modules/`, `dist/`, `.env`, `songs/`, and `.idea/` (IntelliJ's settings folder, which was showing as untracked).
 - Started this log.
+- Renamed `LOG.md` to `log.md` so file names are lowercase like my Portfolio. Added that rule to my shared `TCSS 490/CLAUDE.md` so it carries to every artifact.
+
+---
+
+## 3. Scaffolding the Vite project (2026-10-12)
+
+**What I asked for**
+- Asked Claude Code to check Vite's minimum Node version in the docs before running anything, and to explain how it would scaffold.
+- Asked for the license of every package before installing.
+
+**What changed**
+- Vite's guide says it needs Node 20.19+ or 22.12+. I have v24.14.1, so that is fine.
+- Checked licenses on npm: `create-vite` (MIT), `vite` (MIT), and `typescript` 6.0.x (Apache-2.0). I approved them.
+- Committed my setup files first so anything that went wrong could be undone.
+- Generated Vite's `vanilla-ts` starter into a temporary folder instead of the repo root, since the docs don't say what happens in a folder that already has files. Then moved the files I wanted into the root.
+- Deleted the demo parts (counter, logos, hero image, icons) and replaced the page with a blank "MIDI Companion" heading.
+- Renamed the project in `package.json` and the page title in `index.html`.
+- Added `"strict": true` to `tsconfig.json`. The starter did not have it, and it catches things like using a note that might be `undefined`.
+- Added `*.local` and `*.log` to my `.gitignore` from the starter's `.gitignore`.
+- Ran `npm install`: 16 packages, 0 vulnerabilities. Claude listed every package's license. They are all permissive (MIT, ISC, BSD, Apache-2.0) except `lightningcss` (MPL-2.0), a CSS tool Vite uses at build time. MPL only matters if I change its own files, so it is fine.
+- `npm run build` passed with strict mode on, and `npm run dev` served the page at `localhost:5173`. I opened it in Chrome and saw "MIDI Companion" in light text on a dark background.
 
 ---
 
 ## Where AI misread me, or I had to correct course
 
 **Claude**
-- Nothing yet.
+- **Scaffold command in PowerShell:** it ran `npm create vite@latest scaffold-tmp -- --template vanilla-ts`, but PowerShell 5.1 swallows the `--`, so `--template` never reached Vite's generator. It only worked because the generator also accepts the template name as a plain word. Claude caught the npm warning, checked the files to confirm it really was the TypeScript template, and told me.
 
 **My own mistakes**
 - Nothing yet.

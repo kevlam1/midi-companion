@@ -17,7 +17,10 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - Check what you build by running it. Say what you checked and what you could not.
 
 ## How to run / test
-Not set up yet.
+- `npm install` once, after cloning.
+- `npm run dev` starts the dev server at `http://localhost:5173/`.
+- `npm run build` type-checks (strict) and builds into `dist/`. Run it before committing.
+- `npm run preview` serves the built `dist/` locally.
 
 ## Open questions
 - Vite's minimum Node version (I have Node v24.14.1).

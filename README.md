@@ -1,0 +1,2 @@
+# midi-companion
+MIDI Visualizer

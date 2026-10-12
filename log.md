@@ -103,6 +103,31 @@ A browser-based MIDI player and Synthesia-style visualizer. I load a MIDI file, 
 
 ---
 
+## 6. Falling notes and the keyboard, v1 (2026-10-12)
+
+I started Tuesday's plan early since I had time left on Monday.
+
+**What I asked for**
+- Asked Claude Code to explain how it would build this before writing code: one clock for play, pause, restart, and seek, an animation loop, turning a note's time into a screen position, and laying out the keys.
+- Picked light orange for the notes.
+- Asked whether the notes take the song's tempo into account, since some songs might need the notes to fall faster.
+
+**What changed**
+- Added `src/clock.ts` (the one clock), `src/keyboard.ts` (positions for all 88 keys), and `src/renderer.ts` (draws each frame on a canvas).
+- The page now has a toolbar (file picker, Play/Pause, Restart, time counter) above a full-window canvas. The debug text moved to the browser console.
+- Claude checked the key layout in Node: 88 keys, 52 white and 36 black, with black keys centered between their white neighbors.
+- I loaded the scale and it looked as described: eight light orange bars stepping up from C4 to C5, each touching the keyboard right on time. Claude checked my screenshot's pixel positions against the expected ones and they matched.
+
+**What I learned**
+- The tempo is already handled. `@tonejs/midi` converts MIDI timing to seconds using the song's tempo, including tempo changes. Notes always fall at the same speed (200 px per second), and faster songs just have notes packed closer together, like Synthesia.
+- `requestAnimationFrame` redraws about 60 times a second, and every frame reads the time from the one clock, so the picture can't drift from it.
+
+**Decisions**
+- All 88 keys always, instead of zooming to the song's range. It matches a real piano for Learn mode.
+- The clock lives in its own file because audio on Wednesday may need to become the clock everything follows.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**

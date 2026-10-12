@@ -5,7 +5,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 
 ## Stack
 - Vite + TypeScript, no UI framework, Canvas 2D for drawing.
-- Deploy target: Vercel.
+- Hosted on Vercel at `midi-companion.vercel.app`. Every push to `main` redeploys.
 - Reference app: midee (`github.com/aayushdutt/midee`). It has no license, so ideas only. Do not copy its code, assets, or styling.
 
 ## Rules

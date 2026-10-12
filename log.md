@@ -1,6 +1,6 @@
 # Build log: Artifact 2 (MIDI Companion)
 
-**AI:** Claude Code | **Editor:** IntelliJ IDEA Ultimate | **Host:** Vercel (planned)
+**AI:** Claude Code | **Editor:** IntelliJ IDEA Ultimate | **Host:** Vercel (`midi-companion.vercel.app`)
 **Stack:** Vite + TypeScript, no UI framework, Canvas 2D.
 
 ---
@@ -63,10 +63,31 @@ A browser-based MIDI player and Synthesia-style visualizer. I load a MIDI file, 
 
 ---
 
+## 4. First deploy to Vercel (2026-10-12)
+
+**What I asked for**
+- Asked Claude Code to walk me through deploying the blank page, using Vercel's current docs instead of memory. This was my first time deploying on my own.
+
+**What changed**
+- Pushed my commits to GitHub, since Vercel builds from the repo.
+- Imported `kevlam1/midi-companion` from the Vercel dashboard (New Project). Vercel detected the Vite preset, with root `./` and output `dist`. I left the build settings on their defaults and added no environment variables.
+- Deployed. The live site is `midi-companion.vercel.app`, and I saw the same "MIDI Companion" page there.
+- Claude fetched the live page and found the same built file names as my local build, so Vercel built the same code.
+
+**Decisions**
+- Deployed from the dashboard connected to GitHub instead of the Vercel CLI, so I did not have to install anything, and every push to `main` redeploys the site.
+- Gave Vercel's GitHub app access to only this repo.
+
+**Still to check**
+- Whether Vercel's build runs `npm run build` (with the TypeScript check) or only `vite build`. The build log disappeared from the page when the deploy finished, so I need to find it under the deployment.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
 - **Scaffold command in PowerShell:** it ran `npm create vite@latest scaffold-tmp -- --template vanilla-ts`, but PowerShell 5.1 swallows the `--`, so `--template` never reached Vite's generator. It only worked because the generator also accepts the template name as a plain word. Claude caught the npm warning, checked the files to confirm it really was the TypeScript template, and told me.
+- **Co-author line on commits:** I had told Claude in my Portfolio project to leave the `Co-Authored-By: Claude` line out of commits, but that rule was saved only for the Portfolio folder, so this session never saw it. My first two commits here went to GitHub with the line. I had Claude rewrite those two commit messages (same files, new commit IDs) and force-push. To stop it from happening again, the rule is now in my shared `TCSS 490/CLAUDE.md`, which every artifact loads.
 
 **My own mistakes**
 - Nothing yet.

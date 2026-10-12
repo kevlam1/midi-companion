@@ -13,7 +13,9 @@ if (app) {
       <input type="file" id="file" accept=".mid,.midi" />
       <button id="play" disabled>Play</button>
       <button id="restart" disabled>Restart</button>
+      <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled />
       <span id="time">0.00 / 0.00 s</span>
+      <span id="fps"></span>
     </div>
     <canvas id="stage"></canvas>
   `
@@ -24,7 +26,9 @@ function start(app: HTMLDivElement): void {
   const fileInput = app.querySelector<HTMLInputElement>('#file')!
   const playButton = app.querySelector<HTMLButtonElement>('#play')!
   const restartButton = app.querySelector<HTMLButtonElement>('#restart')!
+  const seekSlider = app.querySelector<HTMLInputElement>('#seek')!
   const timeLabel = app.querySelector<HTMLSpanElement>('#time')!
+  const fpsLabel = app.querySelector<HTMLSpanElement>('#fps')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -33,6 +37,9 @@ function start(app: HTMLDivElement): void {
   let duration = 0
   let keys = new Map<number, Key>()
   let keysWidth = 0
+  let dragging = false // true while the seek slider is held, so the loop doesn't fight it
+  let fpsFrames = 0
+  let fpsSince = performance.now()
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0]
@@ -50,7 +57,21 @@ function start(app: HTMLDivElement): void {
     clock.seek(0)
     playButton.disabled = false
     restartButton.disabled = false
+    seekSlider.disabled = false
+    seekSlider.max = String(duration)
     playButton.textContent = 'Play'
+  })
+
+  seekSlider.addEventListener('pointerdown', () => {
+    dragging = true
+  })
+  for (const type of ['pointerup', 'pointercancel', 'change']) {
+    seekSlider.addEventListener(type, () => {
+      dragging = false
+    })
+  }
+  seekSlider.addEventListener('input', () => {
+    clock.seek(Number(seekSlider.value))
   })
 
   playButton.addEventListener('click', () => {
@@ -92,6 +113,18 @@ function start(app: HTMLDivElement): void {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     draw(ctx, width, height, keys, notes, time)
     timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
+    if (!dragging) seekSlider.value = String(time)
+    const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
+    seekSlider.style.setProperty('--progress', `${progress}%`)
+
+    // Frames drawn per second, updated twice a second.
+    fpsFrames++
+    const now = performance.now()
+    if (now - fpsSince >= 500) {
+      fpsLabel.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsSince))} fps`
+      fpsFrames = 0
+      fpsSince = now
+    }
 
     requestAnimationFrame(frame)
   }

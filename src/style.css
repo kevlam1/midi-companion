@@ -24,8 +24,67 @@ body {
   font-size: 1.1rem;
 }
 
-#time {
+/* Seek slider. The played part is filled orange using --progress, set from main.ts. */
+#seek {
+  --progress: 0%;
+  flex: 1;
+  height: 1rem;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+#seek:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+#seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #ffb870 var(--progress), #3a3a3a var(--progress));
+}
+
+#seek::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: #ffb870;
+  appearance: none;
+}
+
+#seek::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: #3a3a3a;
+}
+
+#seek::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: #ffb870;
+}
+
+#seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #ffb870;
+}
+
+#time,
+#fps {
   font-variant-numeric: tabular-nums;
+}
+
+#fps {
+  color: #888;
+  min-width: 4rem;
+  text-align: right;
 }
 
 #stage {

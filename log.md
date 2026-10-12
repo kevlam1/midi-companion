@@ -128,6 +128,32 @@ I started Tuesday's plan early since I had time left on Monday.
 
 ---
 
+## 7. Seek slider, frame rate, and darker black-key notes (2026-10-12)
+
+**What I asked for**
+- The rest of Tuesday's plan: a seek slider and a way to measure the frame rate.
+- Tested with a real song from my new `songs/` folder (gitignored, so it never gets committed).
+- Asked for a slightly darker shade for the thin notes that land on black keys.
+- Showed Claude midee's floating control bar as a reference for the slider.
+
+**What changed**
+- Added a seek slider to the toolbar. Dragging it jumps the song to that point, while playing or paused. While playing it follows the song, except while I'm holding it.
+- Added a frames-per-second counter to the toolbar.
+- Black-key notes are now a darker orange (`#e08a3c`) than white-key notes (`#ffb870`).
+- Styled the slider in my own colors: thin dark track, orange handle, and the played part filled orange.
+
+**What I checked**
+- My song (about 77 s) looks right: chords stack, held notes are tall bars, and repeated notes have small gaps between them.
+- The frame rate stayed at 165 fps, my monitor's maximum, the whole time, including the busiest parts. Canvas 2D is more than fast enough, so no PixiJS.
+- Seeking works while playing and while paused.
+- Claude checked that my song is ignored by git (`git check-ignore`).
+
+**Decisions**
+- midee's control bar floats and can be moved around. That is a common idea, but midee has no license, so I will design my own instead of copying its look. It also needs controls that don't exist yet (volume, speed), so it goes on the Saturday polish list.
+- The slider's look uses browser-specific CSS (`::-webkit-slider-thumb` and Firefox's `::-moz-range-*`), since there is no standard way to style a slider yet. IntelliJ may flag them, but they are harmless.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -145,3 +171,5 @@ I started Tuesday's plan early since I had time left on Monday.
 - Considered PixiJS. Chose Canvas 2D for now.
 - Considered writing my own MIDI parser. Chose `@tonejs/midi`.
 - Considered downloading a test MIDI file. Generated my own instead.
+- Measured the frame rate with a real song (steady 165 fps), so I dropped PixiJS for good.
+- Considered a floating, movable control bar like midee's. Moved it to Saturday's polish, with my own design.

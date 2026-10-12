@@ -8,6 +8,7 @@ export interface FallingNote {
 
 const BACKGROUND = '#111'
 const NOTE_COLOR = '#ffb870' // light orange
+const BLACK_KEY_NOTE_COLOR = '#e08a3c' // darker orange, so black-key notes stand out
 const PIXELS_PER_SECOND = 200
 
 // Draws one frame. Sizes are in CSS pixels.
@@ -30,13 +31,13 @@ export function draw(
   ctx.beginPath()
   ctx.rect(0, 0, width, keyboardTop)
   ctx.clip()
-  ctx.fillStyle = NOTE_COLOR
   for (const note of notes) {
     const key = keys.get(note.midi)
     if (!key) continue
     const bottom = keyboardTop - (note.time - time) * PIXELS_PER_SECOND
     const top = bottom - note.duration * PIXELS_PER_SECOND
     if (bottom < 0 || top > keyboardTop) continue
+    ctx.fillStyle = key.black ? BLACK_KEY_NOTE_COLOR : NOTE_COLOR
     ctx.fillRect(key.x + 1, top, key.width - 2, bottom - top - 1)
   }
   ctx.restore()

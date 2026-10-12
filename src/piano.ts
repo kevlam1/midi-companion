@@ -1,4 +1,4 @@
-import { Sampler, getContext, immediate } from 'tone'
+import { Gain, Sampler, ToneAudioBuffers, getContext, immediate, type ToneAudioBuffer } from 'tone'
 import type { Clock } from './clock.ts'
 import type { FallingNote } from './renderer.ts'
 
@@ -6,6 +6,7 @@ import type { FallingNote } from './renderer.ts'
 // There is a recording every third note (A, C, D#, F#); the Sampler re-pitches the ones in between.
 const BASE_URL = 'https://tonejs.github.io/audio/salamander/'
 const LOOKAHEAD = 0.25 // seconds of notes to queue ahead of the clock
+const FADE = 0.03 // seconds to fade out old notes on pause or seek
 
 function sampleUrls(): Record<string, string> {
   const urls: Record<string, string> = { A0: 'A0.mp3' }
@@ -18,18 +19,40 @@ function sampleUrls(): Record<string, string> {
   return urls
 }
 
+// One play session: a Sampler behind its own volume control. Tone's Sampler forgets a note as soon
+// as its release is scheduled, so releaseAll() can't cancel queued notes. Instead, each Play or seek
+// starts a new session, and the old one is faded out and thrown away, which silences everything it queued.
+interface Session {
+  sampler: Sampler
+  gain: Gain
+}
+
 export class Piano {
-  private sampler: Sampler
+  private buffers: ToneAudioBuffers // the recordings, downloaded once and shared by every session
+  private session: Session | null = null
   private next = 0 // index of the next note to queue
-  readonly ready: Promise<void>
+  loaded = false
+  readonly ready: Promise<void> // rejects if the recordings can't be downloaded
 
   // Sync check: how many notes were queued, and how many were queued after they were already due.
   stats = { queued: 0, late: 0, worstLateMs: 0 }
 
   constructor() {
     let resolve = (): void => {}
-    this.ready = new Promise((r) => (resolve = r))
-    this.sampler = new Sampler({ urls: sampleUrls(), baseUrl: BASE_URL, release: 1, onload: resolve }).toDestination()
+    let reject = (_error: Error): void => {}
+    this.ready = new Promise((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    this.buffers = new ToneAudioBuffers({
+      urls: sampleUrls(),
+      baseUrl: BASE_URL,
+      onload: () => {
+        this.loaded = true
+        resolve()
+      },
+      onerror: (error) => reject(error),
+    })
   }
 
   // How long the clock should wait after Play or a seek, so the first notes are queued in time.
@@ -41,31 +64,52 @@ export class Piano {
     return Math.max(0.05, 3 * base)
   }
 
-  // Called every frame while playing: queues notes that start within the next LOOKAHEAD seconds.
-  // Returns how many notes it queued this frame.
-  schedule(notes: FallingNote[], clock: Clock): number {
+  // Called every frame while playing: queues notes that start within the next `lookahead` seconds.
+  // Returns how many notes it queued. Without a loaded sound, it only moves past the notes.
+  schedule(notes: FallingNote[], clock: Clock, lookahead = LOOKAHEAD): number {
     const now = clock.time
     let count = 0
-    while (this.next < notes.length && notes[this.next].time < now + LOOKAHEAD) {
+    while (this.next < notes.length && notes[this.next].time < now + lookahead) {
       const note = notes[this.next++]
-      if (note.time < now - 0.05) continue // missed (e.g. the tab was hidden), skip rather than play late
+      if (note.time < now - 0.05) continue // missed (e.g. the frame loop stalled), skip rather than play late
+      if (!this.session) continue
       const due = clock.audioTimeAt(note.time)
       const lateMs = (immediate() - due) * 1000
       if (lateMs > 0) {
         this.stats.late++
         this.stats.worstLateMs = Math.max(this.stats.worstLateMs, lateMs)
       }
-      this.sampler.triggerAttackRelease(note.name, note.duration, Math.max(due, immediate()), note.velocity)
+      this.session.sampler.triggerAttackRelease(note.name, note.duration, Math.max(due, immediate()), note.velocity)
       this.stats.queued++
       count++
     }
     return count
   }
 
-  // Stops all sound and starts queuing again from the clock's current time. Call after pause or seek.
+  // Silences everything and starts queuing again from `time`. Call after Play, pause, or seek.
   reset(notes: FallingNote[], time: number): void {
-    this.sampler.releaseAll(immediate())
+    this.endSession()
+    if (this.loaded) this.session = this.startSession()
     this.next = notes.findIndex((n) => n.time >= time)
     if (this.next === -1) this.next = notes.length
+  }
+
+  private startSession(): Session {
+    const urls: Record<string, ToneAudioBuffer> = {}
+    for (const name of Object.keys(sampleUrls())) urls[name] = this.buffers.get(name)
+    const gain = new Gain(1).toDestination()
+    const sampler = new Sampler({ urls, release: 1 }).connect(gain)
+    return { sampler, gain }
+  }
+
+  private endSession(): void {
+    const old = this.session
+    this.session = null
+    if (!old) return
+    old.gain.gain.linearRampTo(0, FADE, immediate())
+    setTimeout(() => {
+      old.sampler.dispose()
+      old.gain.dispose()
+    }, (FADE + 0.1) * 1000)
   }
 }

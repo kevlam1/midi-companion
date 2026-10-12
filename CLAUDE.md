@@ -28,6 +28,10 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - How my keyboard connects to the PC.
 - Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC.
 
+## Decided behavior
+- Plain playback keeps playing when the tab is hidden. Learn mode must pause when the tab is hidden. Maybe a setting later.
+- Sustain pedal is ignored for now. Drum tracks and notes outside the 88 keys are skipped.
+
 ## Credits rule
 Any new sound samples or assets need their license checked and a credit added to the page footer and `README.md`. Current: Salamander Grand Piano by Alexander Holm (CC BY 3.0).
 

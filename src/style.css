@@ -81,6 +81,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+#status {
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
 #fps {
   color: #888;
   min-width: 4rem;

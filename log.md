@@ -199,6 +199,38 @@ I started Wednesday's plan the same day.
 
 ---
 
+## 9. Edge cases and a pause bug (2026-10-12)
+
+**What I asked for**
+- Asked what other edge cases I should think about at this point.
+- Decided to ignore the sustain pedal for now.
+- Asked for the rest of the edge cases to be handled. For switching tabs, I decided the plain playback mode should keep playing in the background, and only the play-along (Learn) mode should pause. That could become a setting later.
+
+**What changed**
+- **Pause bug:** while working on background tabs, Claude found that pausing didn't actually stop the sound. Tone.js's `Sampler` forgets a note as soon as its release is scheduled, so `releaseAll()` had nothing to stop, and queued or held notes kept playing. Now each Play or seek gets its own Sampler behind its own volume control. On pause, seek, or Restart, the old one fades out over 30 ms and is thrown away. The recordings are still downloaded only once and shared.
+- **Piano sound fails to load** (offline, blocked network, Tone.js's site down): the toolbar says so, and songs still play silently instead of the button saying "Loading piano…" forever.
+- **Broken or fake `.mid` file:** the toolbar says it couldn't read the file, and the song that was already loaded stays. Added `test-files/not-a-midi.mid` (a text file renamed) to test this.
+- **Same file picked twice:** the picker now resets each time it opens, so picking the same file reloads it.
+- **Drum tracks:** skipped, since drum hits are stored as pitches and would land on random piano keys.
+- **Notes outside the 88 keys:** skipped.
+- The toolbar shows what was loaded, e.g. "270 notes", and anything skipped.
+- **Switching tabs:** the browser stops our frame loop in hidden tabs, so when the tab is hidden during playback, every remaining note gets queued at once and the music keeps going.
+
+**What I checked**
+- It builds with the strict type-check.
+- Pausing during a held chord now stops the sound right away.
+- Switching tabs while playing: the music kept going, and the notes were in sync when I came back.
+- The fake `not-a-midi.mid` shows the "couldn't read" message, and my song stays loaded.
+- Picking the same file twice reloads it.
+- The toolbar shows how many notes were loaded.
+- With the piano sound blocked in DevTools, the toolbar says it couldn't load, and the song still plays silently.
+
+**Decisions**
+- Ignore the sustain pedal for now.
+- Plain playback keeps playing in background tabs. Learn mode should pause when the tab is hidden. Later this could be a setting.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -207,6 +239,7 @@ I started Wednesday's plan the same day.
 - **Unclear explanation:** when Claude first raised the "piano sound" question, it didn't explain that Tone.js is code and samples are separate recordings with their own licenses, so I thought it was asking whether Tone.js was allowed. It explained again when I asked.
 - **Dev server:** Claude told me the local server was still running after it had actually hit its time limit and stopped. It corrected this when it noticed.
 - **Fixed 50 ms head start:** Claude first proposed a fixed 50 ms, tested only against my PC. When I pointed out it has to work on other people's devices, it changed the head start to adapt to each device.
+- **Pause didn't stop the sound:** Claude told me pause, seek, and Restart stopped all sound, and section 8 says so, but that was wrong. It had read Tone.js's `releaseAll()` but not that `triggerRelease()` empties the list it uses. Claude found this itself while working on background tabs and fixed it in section 9.
 
 **My own mistakes**
 - Nothing yet.
@@ -223,3 +256,5 @@ I started Wednesday's plan the same day.
 - Considered a floating, movable control bar like midee's. Moved it to Saturday's polish, with my own design.
 - Considered `@tonejs/piano` (the package midee uses). Dropped it because it needs the older Tone.js 14. Used Tone.js's `Sampler` with the same Salamander recordings instead.
 - Considered a generated synth sound. Chose real piano recordings.
+- Considered supporting the sustain pedal. Left it out for now.
+- Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.

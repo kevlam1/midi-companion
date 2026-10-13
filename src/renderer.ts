@@ -1,4 +1,4 @@
-import type { Key } from './keyboard.ts'
+import { keyboardLayout, type Key } from './keyboard.ts'
 
 export interface FallingNote {
   midi: number
@@ -22,7 +22,7 @@ function noteColor(track: number, black: boolean): string {
   return black ? colors.black : colors.white
 }
 
-// Draws one frame. Sizes are in CSS pixels.
+// Draws one frame. Sizes are in CSS pixels. `pressed` is the keys held by hand (mouse or MIDI keyboard).
 export function draw(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -30,9 +30,9 @@ export function draw(
   keys: Map<number, Key>,
   notes: FallingNote[],
   time: number,
+  pressed: Set<number>,
 ): void {
-  const keyboardHeight = Math.min(140, height * 0.22)
-  const keyboardTop = height - keyboardHeight
+  const { top: keyboardTop, height: keyboardHeight, blackHeight } = keyboardLayout(height)
 
   ctx.fillStyle = BACKGROUND
   ctx.fillRect(0, 0, width, height)
@@ -55,12 +55,14 @@ export function draw(
   }
   ctx.restore()
 
+  // A key you hold always uses the right-hand color (track 0), whatever the song is doing.
+  const keyTrack = (midi: number): number | undefined => (pressed.has(midi) ? 0 : active.get(midi))
+
   // Keyboard: white keys first, then black keys on top.
-  const blackHeight = keyboardHeight * 0.62
   for (const key of keys.values()) {
     if (key.black) continue
     // Same 1 px inset as the falling note, so a lit key is exactly as wide as its note.
-    const track = active.get(key.midi)
+    const track = keyTrack(key.midi)
     ctx.fillStyle = track === undefined ? '#f2f2f2' : noteColor(track, false)
     ctx.fillRect(key.x + 1, keyboardTop, key.width - 2, keyboardHeight)
   }
@@ -68,7 +70,7 @@ export function draw(
     if (!key.black) continue
     ctx.fillStyle = '#1a1a1a'
     ctx.fillRect(key.x, keyboardTop, key.width, blackHeight)
-    const track = active.get(key.midi)
+    const track = keyTrack(key.midi)
     if (track !== undefined) {
       ctx.fillStyle = noteColor(track, true)
       ctx.fillRect(key.x + 1, keyboardTop, key.width - 2, blackHeight)

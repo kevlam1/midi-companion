@@ -15,6 +15,30 @@ export function isBlack(midi: number): boolean {
   return BLACK_PITCHES.has(midi % 12)
 }
 
+export interface KeyboardLayout {
+  top: number // y of the top edge of the keys
+  height: number // height of the white keys
+  blackHeight: number // height of the black keys
+}
+
+// The keyboard strip at the bottom of a canvas that is `canvasHeight` pixels tall.
+// The renderer draws with these numbers and keyAt() clicks with them, so the two always agree.
+export function keyboardLayout(canvasHeight: number): KeyboardLayout {
+  const height = Math.min(140, canvasHeight * 0.22)
+  return { top: canvasHeight - height, height, blackHeight: height * 0.62 }
+}
+
+// The key under a point (in canvas CSS pixels), or undefined. Black keys sit on top, so they are checked first.
+export function keyAt(keys: Map<number, Key>, x: number, y: number, layout: KeyboardLayout): Key | undefined {
+  if (y < layout.top || y >= layout.top + layout.height) return undefined
+  const hit = (key: Key): boolean => x >= key.x && x < key.x + key.width
+  if (y < layout.top + layout.blackHeight) {
+    for (const key of keys.values()) if (key.black && hit(key)) return key
+  }
+  for (const key of keys.values()) if (!key.black && hit(key)) return key
+  return undefined
+}
+
 // White keys share the width evenly. Each black key is centered on the line
 // between the white keys on either side of it.
 export function layoutKeys(totalWidth: number): Map<number, Key> {

@@ -2,7 +2,7 @@ import './style.css'
 import { Midi } from '@tonejs/midi'
 import { getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
-import { HIGHEST, LOWEST, layoutKeys, type Key } from './keyboard.ts'
+import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { Piano } from './piano.ts'
 import { draw, type FallingNote } from './renderer.ts'
 
@@ -48,6 +48,8 @@ function start(app: HTMLDivElement): void {
   let fpsSince = performance.now()
   let lastFrameAt = 0
   let latencyLogged = false
+  const down = new Set<number>() // pointers (mouse or fingers) currently pressed on the canvas
+  const held = new Map<number, number>() // pointer id -> the key it is holding
 
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
   playButton.textContent = 'Loading piano…'
@@ -129,6 +131,50 @@ function start(app: HTMLDivElement): void {
     if (pianoState !== 'loading') playButton.textContent = 'Play'
   })
 
+  // Play the keys with the mouse or a finger. Dragging across the keys glides: each key plays as you reach it.
+  function keyUnder(event: PointerEvent): Key | undefined {
+    const rect = canvas.getBoundingClientRect()
+    return keyAt(keys, event.clientX - rect.left, event.clientY - rect.top, keyboardLayout(canvas.clientHeight))
+  }
+
+  // Makes this pointer hold `key` (or nothing): lets go of the key it held before, then presses the new one.
+  function moveTo(pointerId: number, key: Key | undefined): void {
+    const before = held.get(pointerId)
+    if (before === key?.midi) return
+    if (before !== undefined) {
+      held.delete(pointerId)
+      piano.release(before)
+    }
+    if (key) {
+      held.set(pointerId, key.midi)
+      piano.press(key.midi)
+    }
+  }
+
+  canvas.addEventListener('pointerdown', async (event) => {
+    if (!keyUnder(event)) return
+    canvas.setPointerCapture(event.pointerId) // keep getting moves even if the pointer leaves the canvas
+    down.add(event.pointerId)
+    await startAudio() // browsers only allow sound after a click, so the audio starts here
+    if (down.has(event.pointerId)) moveTo(event.pointerId, keyUnder(event))
+  })
+  canvas.addEventListener('pointermove', (event) => {
+    if (down.has(event.pointerId)) moveTo(event.pointerId, keyUnder(event))
+  })
+  for (const type of ['pointerup', 'pointercancel']) {
+    canvas.addEventListener(type, (event) => {
+      const pointerId = (event as PointerEvent).pointerId
+      down.delete(pointerId)
+      moveTo(pointerId, undefined)
+    })
+  }
+  // If the tab is hidden while a key is held, the browser may never send the release, so let go of everything.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return
+    for (const pointerId of [...held.keys()]) moveTo(pointerId, undefined)
+    down.clear()
+  })
+
   // Playback mode keeps playing when you switch tabs. The browser stops our frame loop in hidden
   // tabs, so queue every remaining note now. (Learn mode should pause instead; see log.md.)
   document.addEventListener('visibilitychange', () => {
@@ -204,7 +250,7 @@ function start(app: HTMLDivElement): void {
 
     const time = clock.time
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(ctx, width, height, keys, notes, time)
+    draw(ctx, width, height, keys, notes, time, new Set(held.values()))
     timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0

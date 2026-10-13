@@ -104,6 +104,7 @@ body {
 }
 
 #stage {
+  touch-action: none; /* so dragging a finger across the keys isn't taken over by the browser */
   display: block;
   flex: 1;
   width: 100%;

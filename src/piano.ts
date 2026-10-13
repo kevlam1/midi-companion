@@ -1,4 +1,4 @@
-import { Gain, Sampler, ToneAudioBuffers, getContext, immediate, type ToneAudioBuffer } from 'tone'
+import { Frequency, Gain, Sampler, ToneAudioBuffers, getContext, immediate, type ToneAudioBuffer } from 'tone'
 import type { Clock } from './clock.ts'
 import type { FallingNote } from './renderer.ts'
 
@@ -30,6 +30,7 @@ interface Session {
 export class Piano {
   private buffers: ToneAudioBuffers // the recordings, downloaded once and shared by every session
   private session: Session | null = null
+  private live: Sampler | null = null // for notes played by hand; never thrown away
   private next = 0 // index of the next note to queue
   loaded = false
   readonly ready: Promise<void> // rejects if the recordings can't be downloaded
@@ -86,6 +87,18 @@ export class Piano {
     return count
   }
 
+  // Notes played by hand (mouse now, a MIDI keyboard later). They use their own Sampler that is never
+  // thrown away, so pausing or seeking the song doesn't cut off a note you're holding.
+  press(midi: number, velocity = 0.8): void {
+    if (!this.loaded) return
+    if (!this.live) this.live = this.makeSampler().toDestination()
+    this.live.triggerAttack(Frequency(midi, 'midi').toNote(), immediate(), velocity)
+  }
+
+  release(midi: number): void {
+    this.live?.triggerRelease(Frequency(midi, 'midi').toNote(), immediate())
+  }
+
   // Silences everything and starts queuing again from `time`. Call after Play, pause, or seek.
   reset(notes: FallingNote[], time: number): void {
     this.endSession()
@@ -94,11 +107,15 @@ export class Piano {
     if (this.next === -1) this.next = notes.length
   }
 
-  private startSession(): Session {
+  private makeSampler(): Sampler {
     const urls: Record<string, ToneAudioBuffer> = {}
     for (const name of Object.keys(sampleUrls())) urls[name] = this.buffers.get(name)
+    return new Sampler({ urls, release: 1 })
+  }
+
+  private startSession(): Session {
     const gain = new Gain(1).toDestination()
-    const sampler = new Sampler({ urls, release: 1 }).connect(gain)
+    const sampler = this.makeSampler().connect(gain)
     return { sampler, gain }
   }
 

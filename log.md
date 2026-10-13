@@ -262,6 +262,29 @@ I started Wednesday's plan the same day.
 
 ---
 
+## 11. Playing the keys with the mouse (2026-10-12)
+
+**What I asked for**
+- Asked whether I could press the keys with my mouse and have them play. Claude read `piano.ts` and checked Tone.js's typings (`triggerAttack`, `triggerRelease`, `Frequency(69, 'midi').toNote()` gives "A4") before proposing a plan.
+- Told it the keys I press should always use the right-hand color, and that dragging the mouse across the keys should glide.
+
+**What changed**
+- `piano.ts`: `press(midi)` and `release(midi)` play a note by hand. They use their own Sampler that is never thrown away, because the song's Sampler is thrown away on every pause or seek and would cut off a note I'm holding.
+- `keyboard.ts`: `keyboardLayout()` and `keyAt()` find which key is under a click, checking the black keys first. The renderer uses the same layout numbers, so the clickable area matches what's drawn.
+- `renderer.ts`: a key I hold is drawn in the track 0 (orange) color.
+- `main.ts`: pointer events on the canvas, so mouse and touch both work. Dragging across keys releases the old key and plays the new one. Letting go, or hiding the tab, releases everything.
+- `style.css`: `touch-action: none` on the canvas so dragging a finger isn't taken over by the browser.
+
+**What I checked**
+- `npm run build` passes. I tried it in the browser and it works well.
+
+**Decisions**
+- Held keys use the right-hand orange, so I can't tell my key from a right-hand song note when both hit the same note. That might be confusing in Learn mode, and I can change it later.
+- The mouse has no velocity, so every click plays at a fixed 0.8 loudness. My MIDI keyboard will send real velocities.
+- This also does the first half of Web MIDI: my keyboard can call the same `press` and `release`.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**

@@ -10,6 +10,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - A key lights up while its note is playing.
 - Notes are colored by track (orange, then blue), so a song with one track per hand shows the two hands in different colors.
 - Play, pause, restart, and a seek slider.
+- Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Piano sound that stays in sync with the picture, because both follow the audio clock.
 - Drum tracks and notes outside the 88 keys are skipped. The sustain pedal is ignored for now.
 

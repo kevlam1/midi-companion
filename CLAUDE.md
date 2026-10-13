@@ -25,8 +25,8 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 
 ## Code map
 - `src/clock.ts`: the one clock. Runs on the audio clock (`Tone.immediate()`), so the picture and the sound share it. Holds still for a short head start after Play or a seek.
-- `src/piano.ts`: loads the Salamander samples once. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices.
-- `src/keyboard.ts`: positions of the 88 keys. `src/renderer.ts`: draws a frame. Notes are colored per track (`TRACK_COLORS`: orange, then blue, darker on black keys), and a lit key takes the color of the note on it. White keys are drawn 1 px in from each side, the same as the notes.
+- `src/piano.ts`: loads the Salamander samples once. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices. `press`/`release` play notes by hand (mouse now, MIDI keyboard later) on a separate live Sampler that seeks don't cut off.
+- `src/keyboard.ts`: positions of the 88 keys, the keyboard strip's layout, and `keyAt()` (which key is under a click). `src/renderer.ts`: draws a frame. Notes are colored per track (`TRACK_COLORS`: orange, then blue, darker on black keys), and a lit key takes the color of the note on it. White keys are drawn 1 px in from each side, the same as the notes.
 - `src/main.ts`: toolbar, file loading (skips drum tracks, empty tracks, and notes outside the 88 keys; tags each note with its track), and the frame loop.
 
 ## Web MIDI notes (checked on MDN 2026-10-12)

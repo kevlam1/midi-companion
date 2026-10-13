@@ -251,6 +251,7 @@ I started Wednesday's plan the same day.
 - I loaded the C major scale and the keys light up right when the falling notes hit them.
 - After the tweaks, a lit white key lines up with its note and the 2 px space between keys looks good to me.
 - The two track colors on "The Day Will Come" look good to me. `npm run build` passes.
+- Made the blue for black-key notes a bit darker (`#3f86cc` to `#3979b8`) so it stands out more from the white-key blue.
 
 **Decisions**
 - A key stays lit while the song is paused or I seek into the middle of a note, since the light only depends on the song time. I think that is useful, and it is easy to change.

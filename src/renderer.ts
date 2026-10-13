@@ -13,7 +13,7 @@ const BACKGROUND = '#111'
 // One pair of colors per track: lighter for white keys, darker for black keys so those notes stand out.
 const TRACK_COLORS = [
   { white: '#ffb870', black: '#e08a3c' }, // track 0: orange
-  { white: '#6fb7ff', black: '#3f86cc' }, // track 1: blue
+  { white: '#6fb7ff', black: '#3979b8' }, // track 1: blue
 ]
 const PIXELS_PER_SECOND = 200
 

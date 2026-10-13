@@ -15,6 +15,23 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - No new dependencies without showing me the license and asking. No secrets in the repo (my repos are public).
 - My songs go in `songs/`, which is gitignored (MIDI arrangements are often copyrighted). Only commit test files I made.
 - Check what you build by running it. Say what you checked and what you could not.
+- Commit messages have no `Co-Authored-By` line or other Claude attribution. New file names are lowercase (`log.md`). Both rules are also in `TCSS 490/CLAUDE.md`.
+
+## Status (end of 2026-10-12)
+- Done: Monday to Wednesday of the week plan. Parse MIDI, falling notes on an 88-key keyboard, play/pause/restart/seek, piano sound in sync, and edge cases. All committed and pushed (`dff1023`). `log.md` sections 1 to 9 tell the full story.
+- Next: light up a key while its note is playing (planned for tonight, explain before building). Then Thursday: Web MIDI input from my keyboard.
+- Rest of the week: Fri Learn wait mode (pause at each chord until the right notes are held). Sat polish, including my own floating control bar (midee has one, so design my own), the log, and the portfolio card (done in a Portfolio session). Sun buffer.
+
+## Code map
+- `src/clock.ts`: the one clock. Runs on the audio clock (`Tone.immediate()`), so the picture and the sound share it. Holds still for a short head start after Play or a seek.
+- `src/piano.ts`: loads the Salamander samples once. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices.
+- `src/keyboard.ts`: positions of the 88 keys. `src/renderer.ts`: draws a frame (light orange notes, darker orange on black keys).
+- `src/main.ts`: toolbar, file loading (skips drum tracks and notes outside the 88 keys), and the frame loop.
+
+## Web MIDI notes (checked on MDN 2026-10-12)
+- Works in Chrome 43+, Edge, and Firefox 108+. Not in Safari. Needs a secure page (HTTPS or `localhost`), and the browser asks permission.
+- My keyboard works (I've used it with midee). It can be connected to my MacBook, where I use a Chromium browser. Claude Code runs on my desktop.
+- Plan when we get there (not set up yet): either plug the keyboard into the desktop, or run `npm run dev -- --host` on the desktop and allow that address in the Mac's `chrome://flags/#unsafely-treat-insecure-origin-as-secure`. The live Vercel site (HTTPS) also works for a final check. Never write my home network address into a file.
 
 ## How to run / test
 - `npm install` once, after cloning.
@@ -24,9 +41,8 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
 
 ## Open questions
-- Which browsers support Web MIDI (check MDN). Test in Chrome or Edge.
-- How my keyboard connects to the PC.
 - Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC.
+- Whether to copy the piano samples into the repo, in case Tone.js's site goes down.
 
 ## Decided behavior
 - Plain playback keeps playing when the tab is hidden. Learn mode must pause when the tab is hidden. Maybe a setting later.
@@ -37,3 +53,4 @@ Any new sound samples or assets need their license checked and a credit added to
 
 ## Debugging
 The browser console shows "Slow frame", "Sync check", and "Audio latency" lines. "Sync check" should always say 0 late.
+Harmless console noise: two "AudioContext was not allowed to start" warnings on page load (sound starts on the first Play click), and `Unchecked runtime.lastError` errors, which come from a Chrome extension, not our code.

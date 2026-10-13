@@ -25,7 +25,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 
 ## Code map
 - `src/clock.ts`: the one clock. Runs on the audio clock (`Tone.immediate()`), so the picture and the sound share it. Holds still for a short head start after Play or a seek.
-- `src/piano.ts`: loads the Salamander samples once. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices. `press`/`release` play notes by hand (mouse now, MIDI keyboard later) on a separate live Sampler that seeks don't cut off.
+- `src/piano.ts`: loads the Salamander samples once. They are copies kept in `public/samples/salamander/` (30 mp3 files, 1.92 MB), and `vercel.json` gives that folder a one-year cache time so a visitor's browser keeps them. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices. `press`/`release` play notes by hand (mouse now, MIDI keyboard later) on a separate live Sampler that seeks don't cut off.
 - `src/keyboard.ts`: positions of the 88 keys, the keyboard strip's layout, and `keyAt()` (which key is under a click). `src/renderer.ts`: draws a frame. Notes are colored per track (`TRACK_COLORS`: orange, then blue, darker on black keys), and a lit key takes the color of the note on it. White keys are drawn 1 px in from each side, the same as the notes.
 - `src/learn.ts`: Learn mode logic with no browser code. `groupChords()` turns notes into chords (within 50 ms), and `LearnSession.update(songTime, pressTimes)` says "run" or "wait at this chord until these keys are played". `main.ts` stops and restarts the clock from it. Tested by `scripts/test-learn.mjs`.
 - `src/midi-input.ts`: Web MIDI. Asks for access, listens to every connected keyboard (and re-checks when one is plugged in), and turns note on and note off into `noteOn(midi, velocity 0 to 1)` and `noteOff(midi)` calls. Ignores pedals and everything else. `main.ts` connects these to `piano.press`/`release` and lights the keys.
@@ -44,8 +44,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
 
 ## Open questions
-- Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC.
-- Whether to copy the piano samples into the repo, in case Tone.js's site goes down.
+- Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC. I decided this doesn't matter to me, so I'm not chasing it.
 
 ## Decided behavior
 - Plain playback keeps playing when the tab is hidden. Learn mode must pause when the tab is hidden. Maybe a setting later.

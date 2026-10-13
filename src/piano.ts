@@ -2,9 +2,10 @@ import { Frequency, Gain, Sampler, ToneAudioBuffers, getContext, immediate, type
 import type { Clock } from './clock.ts'
 import type { FallingNote } from './renderer.ts'
 
-// Salamander Grand Piano by Alexander Holm (CC BY 3.0), hosted by Tone.js.
+// Salamander Grand Piano by Alexander Holm (CC BY 3.0). These are copies of the recordings Tone.js hosts,
+// kept in public/samples/salamander/ so the piano doesn't depend on another site (vercel.json gives them a long cache time).
 // There is a recording every third note (A, C, D#, F#); the Sampler re-pitches the ones in between.
-const BASE_URL = 'https://tonejs.github.io/audio/salamander/'
+const BASE_URL = '/samples/salamander/'
 const LOOKAHEAD = 0.25 // seconds of notes to queue ahead of the clock
 const FADE = 0.03 // seconds to fade out old notes on pause or seek
 

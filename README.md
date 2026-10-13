@@ -44,5 +44,5 @@ Your own songs can go in a `songs/` folder. It is gitignored, since MIDI arrange
 Vite, TypeScript, and Canvas 2D, with no UI framework. Tone.js plays the sound and `@tonejs/midi` reads the files.
 
 ## Credits
-- Piano sound: [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The samples are loaded unchanged from the Tone.js audio site.
+- Piano sound: [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The samples are copies of the files hosted by Tone.js ([tonejs.github.io/audio/salamander](https://tonejs.github.io/audio/salamander/)), kept in `public/samples/salamander/`.
 - Audio: [Tone.js](https://github.com/Tonejs/Tone.js) (MIT). MIDI parsing: [@tonejs/midi](https://github.com/Tonejs/Midi) (MIT).

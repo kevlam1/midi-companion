@@ -353,6 +353,27 @@ I started Friday's plan early.
 - Learn still pauses when I switch to another browser tab, and it stays paused when I come back. Claude offered to resume it, and I said no.
 - Wrong notes are ignored, with no penalty. Both tracks must be played in v1. A hand picker, to play only one track, comes later, once I know which track is which hand.
 
+## 15. Hosting the piano samples myself (2026-10-13)
+
+**What I asked for**
+- Asked what the two open items in the log were. I said the speaker delay and the second-device sync test don't matter to me, so I'm ignoring them.
+- For the samples, I agreed it's reasonable to copy them into the repo, and suggested loading them "lazily" onto the user's device. Claude explained that this is really caching (keeping the files on the device after the first visit), not lazy loading.
+- Before recommending anything, Claude checked real data. The 30 recordings add up to 1.92 MB. Tone.js's site tells browsers to keep them for only 10 minutes (`max-age=600`). Vercel serves my files with `public, max-age=0, must-revalidate`, so the browser re-checks every file on every load. Vercel's docs list a `headers` setting in `vercel.json`.
+
+**What changed**
+- Copied the 30 mp3 files into `public/samples/salamander/`, with a small `credits.txt` next to them, and pointed `BASE_URL` in `piano.ts` at `/samples/salamander/`. The piano no longer depends on Tone.js's site.
+- Added `vercel.json` with a one-year, never-changing cache time for that folder, so a visitor's browser keeps the recordings after the first visit. If I ever replace the files I rename the folder.
+- Reworded the README credit. It said the samples were "loaded unchanged from the Tone.js audio site". Now it says they are copies of the files Tone.js hosts, kept in this repo. Claude didn't check how Tone.js prepared those mp3 files, so I avoided saying "unchanged". No new dependency.
+
+**What I checked**
+- `npm run build` passes, and `dist/` has all 30 files.
+- The dev server serves `A0.mp3` from the new path, and it is the same size as Tone.js's copy (113,969 bytes).
+- Not checked yet: that the piano sounds right in the browser from the new path, and that Vercel sends the new cache header after I push.
+
+**Decisions**
+- No service worker (offline mode). It adds complexity and a risk of stale files, and I don't need it.
+- Did not load only the recordings a song needs. My keyboard can play any key, and it would save very little.
+
 ---
 
 ## Where AI misread me, or I had to correct course

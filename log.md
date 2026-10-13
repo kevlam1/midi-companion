@@ -244,16 +244,19 @@ I started Wednesday's plan the same day.
   - Keys no longer light up when a song first loads. A note that starts at 0 s counted as playing while the clock was still at 0, so now nothing lights at exactly 0 s.
   - The lit key was a couple of pixels wider than the falling note landing on it. Notes are drawn 1 px in from each side, but the lit key filled its whole width.
   - My first fix was to paint the orange 1 px inside the key, but a light strip and the grey divider still showed. I suggested a 2 px space between the white keys. Now each white key is drawn 1 px in from each side, the same as the notes, so a lit key is exactly as wide as its note. The grey divider line is gone and the dark background shows between keys.
+- Colored the notes by track so I can tell the hands apart. Claude first read my song's real data: "The Day Will Come" has two tracks, both named "Piano" on channel 0, so only the track number tells them apart. Track 0 stays orange and track 1 is light blue, with a darker shade on black keys. A lit key takes the color of the note that hit it. More than two tracks reuse the two colors, and a song with one track stays orange. Each note now carries a `track` number (set in `main.ts`, used in `renderer.ts`). Tracks with no notes and drum tracks are skipped first, so they can't shift the colors.
 
 **What I checked**
 - `npm run build` passes with the strict type-check.
 - I loaded the C major scale and the keys light up right when the falling notes hit them.
 - After the tweaks, a lit white key lines up with its note and the 2 px space between keys looks good to me.
+- The two track colors on "The Day Will Come" look good to me. `npm run build` passes.
 
 **Decisions**
 - A key stays lit while the song is paused or I seek into the middle of a note, since the light only depends on the song time. I think that is useful, and it is easy to change.
 - To stop keys lighting on load I chose "don't light at exactly 0 s" over "only light while playing", so pause and seek still show held keys.
 - Lit black keys still have a thin dark rim around the orange. I left them alone because I only asked about white keys.
+- Colors follow the track order, not "left" or "right". The pitch ranges (track 0: 58 to 86, track 1: 43 to 67) suggest track 0 is the right hand, but that is a guess, and the two ranges overlap from 58 to 67.
 - Not tested: a note shorter than one frame (about 16 ms) may not light at all, and I did not look at the darker black-key color on a real song yet.
 
 ---

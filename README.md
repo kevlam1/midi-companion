@@ -8,6 +8,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Load a `.mid` file from your computer. Nothing is uploaded; the file is read in the browser.
 - Notes fall onto a full 88-key piano, drawn on a canvas. Notes on black keys are a darker orange.
 - A key lights up while its note is playing.
+- Notes are colored by track (orange, then blue), so a song with one track per hand shows the two hands in different colors.
 - Play, pause, restart, and a seek slider.
 - Piano sound that stays in sync with the picture, because both follow the audio clock.
 - Drum tracks and notes outside the 88 keys are skipped. The sustain pedal is ignored for now.

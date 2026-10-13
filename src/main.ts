@@ -93,14 +93,15 @@ function start(app: HTMLDivElement): void {
     // Skip drum tracks (their notes are drum sounds, not piano keys) and notes outside the 88 keys.
     const drumTracks = midi.tracks.filter((t) => t.instrument.percussion && t.notes.length > 0).length
     const allNotes = midi.tracks
-      .filter((track) => !track.instrument.percussion)
-      .flatMap((track) =>
+      .filter((track) => !track.instrument.percussion && track.notes.length > 0)
+      .flatMap((track, trackIndex) =>
         track.notes.map((n) => ({
           midi: n.midi,
           name: n.name,
           velocity: n.velocity,
           time: n.time,
           duration: n.duration,
+          track: trackIndex, // position among the tracks kept, so drum or empty tracks don't shift colors
         })),
       )
     const songNotes = allNotes

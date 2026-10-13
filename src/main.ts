@@ -1,8 +1,9 @@
 import './style.css'
 import { Midi } from '@tonejs/midi'
-import { getContext, start as startAudio } from 'tone'
+import { Frequency, getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
+import { LearnSession, groupChords } from './learn.ts'
 import { startMidiInput } from './midi-input.ts'
 import { Piano } from './piano.ts'
 import { draw, type FallingNote } from './renderer.ts'
@@ -11,6 +12,11 @@ const app = document.querySelector<HTMLDivElement>('#app')
 
 if (app) {
   app.innerHTML = `
+    <div id="tabs" role="tablist">
+      <button role="tab" data-mode="autoplay" aria-selected="true">Autoplay</button>
+      <button role="tab" data-mode="free" aria-selected="false">Free play</button>
+      <button role="tab" data-mode="learn" aria-selected="false">Learn</button>
+    </div>
     <div id="toolbar">
       <h1>MIDI Companion</h1>
       <input type="file" id="file" accept=".mid,.midi" />
@@ -20,6 +26,7 @@ if (app) {
       <span id="time">0.00 / 0.00 s</span>
       <span id="status"></span>
       <span id="midi"></span>
+      <span id="learn"></span>
       <span id="fps"></span>
     </div>
     <canvas id="stage"></canvas>
@@ -36,6 +43,8 @@ function start(app: HTMLDivElement): void {
   const fpsLabel = app.querySelector<HTMLSpanElement>('#fps')!
   const statusLabel = app.querySelector<HTMLSpanElement>('#status')!
   const midiLabel = app.querySelector<HTMLSpanElement>('#midi')!
+  const learnLabel = app.querySelector<HTMLSpanElement>('#learn')!
+  const tabs = app.querySelectorAll<HTMLButtonElement>('#tabs button')
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -54,6 +63,13 @@ function start(app: HTMLDivElement): void {
   const down = new Set<number>() // pointers (mouse or fingers) currently pressed on the canvas
   const held = new Map<number, number>() // pointer id -> the key it is holding
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
+  type Mode = 'autoplay' | 'free' | 'learn'
+  let mode: Mode = 'autoplay' // Autoplay: the song plays itself. Free play: just the keyboard. Learn: the song waits for me.
+  const learn = new LearnSession()
+  let learnHolding = false // true while Learn mode itself has stopped the clock to wait for me
+  const noNotes: FallingNote[] = [] // Free play draws no falling notes
+  const pressTimes = new Map<number, number>() // key held down -> song time when it was pressed (for Learn mode)
+  app.dataset.mode = mode
 
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
   playButton.textContent = 'Loading piano…'
@@ -120,6 +136,9 @@ function start(app: HTMLDivElement): void {
     clock.seek(0)
     piano.reset(notes, 0)
     piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
+    learn.load(groupChords(notes))
+    learnHolding = false
+    learnLabel.textContent = ''
 
     const skipped: string[] = []
     if (drumTracks > 0) skipped.push(`${drumTracks} drum track${drumTracks > 1 ? 's' : ''}`)
@@ -141,6 +160,14 @@ function start(app: HTMLDivElement): void {
     return keyAt(keys, event.clientX - rect.left, event.clientY - rect.top, keyboardLayout(canvas.clientHeight))
   }
 
+  // Remember when each key went down, in song time, so Learn mode can tell a fresh press from a key held for ages.
+  function noteDown(midi: number): void {
+    if (!pressTimes.has(midi)) pressTimes.set(midi, clock.time)
+  }
+  function noteUp(midi: number): void {
+    if (!midiHeld.has(midi) && ![...held.values()].includes(midi)) pressTimes.delete(midi)
+  }
+
   // Makes this pointer hold `key` (or nothing): lets go of the key it held before, then presses the new one.
   function moveTo(pointerId: number, key: Key | undefined): void {
     const before = held.get(pointerId)
@@ -148,10 +175,12 @@ function start(app: HTMLDivElement): void {
     if (before !== undefined) {
       held.delete(pointerId)
       piano.release(before)
+      noteUp(before)
     }
     if (key) {
       held.set(pointerId, key.midi)
       piano.press(key.midi)
+      noteDown(key.midi)
     }
   }
 
@@ -179,13 +208,42 @@ function start(app: HTMLDivElement): void {
     down.clear()
     for (const midi of midiHeld) piano.release(midi)
     midiHeld.clear()
+    pressTimes.clear()
   })
 
-  // Playback mode keeps playing when you switch tabs. The browser stops our frame loop in hidden
-  // tabs, so queue every remaining note now. (Learn mode should pause instead; see log.md.)
+  // Autoplay keeps playing when you switch browser tabs. The browser stops our frame loop in hidden
+  // tabs, so queue every remaining note now. Learn mode pauses instead (see log.md).
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && clock.playing) piano.schedule(notes, clock, Infinity)
+    if (!document.hidden) return
+    if (mode === 'autoplay' && clock.playing) piano.schedule(notes, clock, Infinity)
+    if (mode === 'learn') pauseSong()
   })
+
+  // Stops the song where it is and silences it. The position is kept, so Play carries on from here.
+  function pauseSong(): void {
+    if (!clock.playing && !learnHolding) return
+    clock.pause()
+    learnHolding = false
+    learnLabel.textContent = ''
+    piano.reset(notes, clock.time)
+    playButton.textContent = 'Play'
+  }
+
+  // Switching tabs pauses the song but does not restart it. I decide when to restart.
+  function setMode(next: Mode): void {
+    if (next === mode) return
+    pauseSong()
+    mode = next
+    app.dataset.mode = mode
+    tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.mode === mode)))
+    learn.reset(clock.time)
+  }
+  tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode as Mode)))
+
+  // The head start only matters when the song makes sound. Learn mode is silent, so it needs none.
+  function lead(): number {
+    return mode === 'autoplay' ? piano.headStart() : 0
+  }
 
   seekSlider.addEventListener('pointerdown', () => {
     dragging = true
@@ -196,15 +254,13 @@ function start(app: HTMLDivElement): void {
     })
   }
   seekSlider.addEventListener('input', () => {
-    clock.seek(Number(seekSlider.value), clock.playing ? piano.headStart() : 0)
+    clock.seek(Number(seekSlider.value), clock.playing ? lead() : 0)
     resync()
   })
 
   playButton.addEventListener('click', async () => {
-    if (clock.playing) {
-      clock.pause()
-      piano.reset(notes, clock.time)
-      playButton.textContent = 'Play'
+    if (clock.playing || learnHolding) {
+      pauseSong()
       logSyncStats()
     } else {
       await startAudio() // browsers only allow sound after a click, so the audio starts here
@@ -213,14 +269,14 @@ function start(app: HTMLDivElement): void {
         latencyLogged = true
       }
       if (clock.time >= duration) clock.seek(0)
-      clock.play(piano.headStart())
+      clock.play(lead())
       resync()
       playButton.textContent = 'Pause'
     }
   })
 
   restartButton.addEventListener('click', () => {
-    clock.seek(0, clock.playing ? piano.headStart() : 0)
+    clock.seek(0, clock.playing ? lead() : 0)
     resync()
   })
 
@@ -228,7 +284,8 @@ function start(app: HTMLDivElement): void {
   // instead of waiting for the next frame (which is slower on 60 Hz screens).
   function resync(): void {
     piano.reset(notes, clock.time)
-    if (clock.playing) piano.schedule(notes, clock)
+    learn.reset(clock.time)
+    if (clock.playing && mode === 'autoplay') piano.schedule(notes, clock)
   }
 
   function frame(): void {
@@ -245,7 +302,26 @@ function start(app: HTMLDivElement): void {
       keysWidth = width
     }
 
-    const queued = clock.playing ? piano.schedule(notes, clock) : 0
+    const queued = clock.playing && mode === 'autoplay' ? piano.schedule(notes, clock) : 0
+
+    // Learn mode: stop the song at each chord until I hold all of its notes, then let it go on.
+    if (mode === 'learn' && (clock.playing || learnHolding)) {
+      const step = learn.update(clock.time, pressTimes)
+      if (step.kind === 'wait') {
+        if (clock.playing) {
+          clock.pause()
+          clock.seek(step.time) // snap to the chord so the notes sit exactly on the keys
+          learnHolding = true
+        }
+        learnLabel.textContent = `Waiting for: ${step.need.map((midi) => Frequency(midi, 'midi').toNote()).join(' ')}`
+      } else {
+        learnLabel.textContent = ''
+        if (learnHolding) {
+          learnHolding = false
+          clock.play()
+        }
+      }
+    }
 
     if (clock.playing && clock.time >= duration) {
       clock.pause()
@@ -256,7 +332,7 @@ function start(app: HTMLDivElement): void {
 
     const time = clock.time
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(ctx, width, height, keys, notes, time, new Set([...held.values(), ...midiHeld]))
+    draw(ctx, width, height, keys, mode === 'free' ? noNotes : notes, time, new Set([...held.values(), ...midiHeld]))
     timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
@@ -294,9 +370,13 @@ function start(app: HTMLDivElement): void {
       if (getContext().rawContext.state !== 'running') midiLabel.textContent = 'Click the page once to turn on sound.'
       midiHeld.add(midi)
       piano.press(midi, velocity)
+      noteDown(midi)
     },
     noteOff: (midi) => {
-      if (midiHeld.delete(midi)) piano.release(midi)
+      if (midiHeld.delete(midi)) {
+        piano.release(midi)
+        noteUp(midi)
+      }
     },
     status: (text) => {
       midiLabel.textContent = text

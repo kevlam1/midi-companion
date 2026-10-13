@@ -1,6 +1,6 @@
 # midi-companion
 
-A browser MIDI player and Synthesia-style visualizer. Load a `.mid` file, watch the notes fall onto an 88-key piano, and hear them with a real piano sound. The goal is to play along on a MIDI keyboard (Learn mode, still to come).
+A browser MIDI player and Synthesia-style visualizer. Load a `.mid` file, watch the notes fall onto an 88-key piano, and hear them with a real piano sound. The goal is to play along on a MIDI keyboard (Learn mode).
 
 Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 
@@ -12,11 +12,12 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Play, pause, restart, and a seek slider.
 - Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Play it with a MIDI keyboard (Chrome or Edge; the page asks permission). Keys light up and play, and harder presses are louder.
+- Three tabs: **Autoplay** (the song plays itself), **Free play** (just the keyboard), and **Learn** (the song waits at each chord until you play its notes). Switching tabs keeps your place in the song.
 - Piano sound that stays in sync with the picture, because both follow the audio clock.
 - Drum tracks and notes outside the 88 keys are skipped. The sustain pedal is ignored for now.
 
 ## Not built yet
-- Learn mode: the song waits at each chord until you hold the right notes.
+- Choosing which hand to practice in Learn mode.
 - A floating control bar and other polish.
 
 ## Run it locally

@@ -3,10 +3,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import pkg from '@tonejs/midi'
-import { LearnSession, groupChords } from '../src/learn.ts'
+import { EARLY, LearnSession, groupChords } from '../src/learn.ts'
 
 const note = (midi, time) => ({ midi, name: '', velocity: 0.8, time, duration: 0.5, track: 0 })
-const held = (...midis) => new Set(midis)
+// Keys that are down: each one pressed at the given song time.
+const down = (at, ...midis) => new Map(midis.map((midi) => [midi, at]))
+const none = () => new Map()
 
 // 1. Notes that start together become one chord. 0.02 s apart joins it, 0.2 s apart does not.
 const chords = groupChords([note(60, 0), note(64, 0), note(67, 0.02), note(60, 0.02), note(62, 1), note(65, 1.2)])
@@ -20,45 +22,68 @@ assert.deepEqual(chords, [
 let learn = new LearnSession()
 learn.load(chords)
 learn.reset(0.5) // pretend we seek to 0.5 s: the first chord left is the one at 1 s
-assert.equal(learn.update(0.9, held()).kind, 'run')
+assert.equal(learn.update(0.9, none()).kind, 'run')
 
-// 3. When the chord arrives and nothing is held, the song waits at the chord's time and says what it needs.
-let step = learn.update(1.01, held())
-assert.deepEqual(step, { kind: 'wait', time: 1, need: [62] })
+// 3. When the chord arrives and nothing is down, the song waits at the chord's time and says what it needs.
+assert.deepEqual(learn.update(1.01, none()), { kind: 'wait', time: 1, need: [62] })
 
 // 4. Wrong keys don't count, and it keeps waiting.
-assert.equal(learn.update(1, held(60, 64)).kind, 'wait')
+assert.equal(learn.update(1, down(1, 60, 64)).kind, 'wait')
 
-// 5. Holding the right key lets it run again, and the next chord (1.2 s) is not due yet.
-assert.equal(learn.update(1, held(62)).kind, 'run')
-assert.equal(learn.update(1.1, held()).kind, 'run')
+// 5. Playing the right key lets it run again, and the next chord (1.2 s) is not due yet.
+assert.equal(learn.update(1, down(1, 62)).kind, 'run')
+assert.equal(learn.update(1.1, none()).kind, 'run')
 
 // 6. A chord with several notes needs all of them at once.
 learn = new LearnSession()
 learn.load(chords)
-assert.deepEqual(learn.update(0, held(60)), { kind: 'wait', time: 0, need: [60, 64, 67] })
-assert.equal(learn.update(0, held(60, 64)).kind, 'wait')
-assert.equal(learn.update(0, held(60, 64, 67)).kind, 'run')
+assert.deepEqual(learn.update(0, down(0, 60)), { kind: 'wait', time: 0, need: [60, 64, 67] })
+assert.equal(learn.update(0, down(0, 60, 64)).kind, 'wait')
+assert.equal(learn.update(0, down(0, 60, 64, 67)).kind, 'run')
 
-// 7. If I'm already holding the chord when it arrives, the song never stops.
+// 7. A key pressed a little early still counts, so the song never stops. One held from long before does not.
 learn = new LearnSession()
 learn.load(chords)
-assert.equal(learn.update(0, held(60, 64, 67)).kind, 'run')
-assert.equal(learn.update(1, held(62)).kind, 'run')
-assert.equal(learn.update(1.2, held(65)).kind, 'run')
-
-// 8. After the last chord, it keeps running.
-assert.equal(learn.update(5, held()).kind, 'run')
-
-// 9. Reset after a wait forgets the wait and starts from the new time.
-learn = new LearnSession()
-learn.load(chords)
-assert.equal(learn.update(0, held()).kind, 'wait')
 learn.reset(1)
-assert.equal(learn.update(0.5, held()).kind, 'run')
-assert.equal(learn.update(1, held()).kind, 'wait')
+assert.equal(learn.update(1, down(1 - EARLY - 0.05, 62)).kind, 'wait') // held way too early
+learn.reset(1)
+assert.equal(learn.update(1, down(1 - EARLY + 0.05, 62)).kind, 'run') // just early enough
 
-// 10. The real test file: 8 single notes, C4 (60) to C5 (72), one every 0.5 s.
+// 8. The same press can't count twice. A repeated note needs a new press.
+const repeated = [
+  { time: 0, midis: [60] },
+  { time: 1, midis: [60] },
+]
+learn = new LearnSession()
+learn.load(repeated)
+assert.equal(learn.update(0, down(0, 60)).kind, 'run') // first chord played
+assert.deepEqual(learn.update(1, down(0, 60)), { kind: 'wait', time: 1, need: [60] }) // still the same press
+assert.equal(learn.update(1, down(1, 60)).kind, 'run') // a new press
+
+// 8b. Same, but the chords are closer than EARLY, so the early window alone would let the old press through.
+// (Real chords are never this close, since notes within 50 ms are grouped. This keeps the rule honest if EARLY grows.)
+const gap = EARLY / 2
+learn = new LearnSession()
+learn.load([
+  { time: 0, midis: [60] },
+  { time: gap, midis: [60] },
+])
+assert.equal(learn.update(0, down(0, 60)).kind, 'run')
+assert.equal(learn.update(gap, down(0, 60)).kind, 'wait') // same press, so it can't count again
+assert.equal(learn.update(gap, down(gap, 60)).kind, 'run')
+
+// 9. After the last chord, it keeps running.
+assert.equal(learn.update(5, none()).kind, 'run')
+
+// 10. Reset after a wait forgets the wait and starts from the new time.
+learn = new LearnSession()
+learn.load(chords)
+assert.equal(learn.update(0, none()).kind, 'wait')
+learn.reset(1)
+assert.equal(learn.update(0.5, none()).kind, 'run')
+assert.equal(learn.update(1, none()).kind, 'wait')
+
+// 11. The real test file: 8 single notes, C4 (60) to C5 (72), one every 0.5 s.
 const midi = new pkg.Midi(readFileSync(new URL('../test-files/c-major-scale.mid', import.meta.url)))
 const scale = midi.tracks
   .flatMap((track) => track.notes)

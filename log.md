@@ -323,6 +323,32 @@ I started Wednesday's plan the same day.
 - On my keyboard the keys light up on the site and the sound plays.
 - Not checked: playing along with a song at the same time, and whether the "click the page once" hint behaves right. Claude also didn't check two sources holding the same key. Releasing one cuts the note even if the other still holds it, which is rare.
 
+## 14. Tabs and Learn mode (2026-10-13)
+
+I started Friday's plan early.
+
+**What I asked for**
+- Learn mode as a wait mode: the song plays until a chord reaches the keyboard, then waits until I play its notes. Claude read `clock.ts` first, then laid out a plan and four choices before building: mute the song's sound in Learn, make me play every note of a chord (both tracks), ignore wrong notes, and require the notes to be held together. I said yes to all four.
+- Separate tabs for the modes. I asked for "Play", "Live" and "Learn". Claude suggested "Listen", "Free play" and "Learn", because the toolbar already has a Play button. I picked **Autoplay** instead of Listen, and kept Free play and Learn.
+- Switching tabs must not restart the song. I decide when to restart.
+- My keyboard plays along in every tab, and the file picker and slider stay in Autoplay and Learn.
+
+**What changed**
+- `src/learn.ts`: groups notes that start within 50 ms into chords, and decides each frame whether to keep running or wait at a chord. `scripts/test-learn.mjs` tests it in Node (including the real C major scale file).
+- `main.ts` and `style.css`: a tab bar. Autoplay is as before. Free play hides the song controls and the falling notes. Learn stops the clock at each chord, shows "Waiting for: C4 E4 G4", and resumes when I play it. Learn mutes the song, pauses when the browser tab is hidden, and Seek and Restart reset where it waits. Switching tabs pauses the song at the same spot.
+
+**What I found while testing**
+- In the first version, a key I was already holding when a chord arrived counted, so I could hold a key long before its note fell and Learn mode never stopped. Claude had flagged the repeated-note case but not this one.
+- The fix: each key remembers the song time when it was pressed. A press counts for a chord only if it was no more than `EARLY` before the chord, and one press can only count for one chord, so a repeated note needs a new press. `EARLY` was 0.2 s, which I found too generous, so I set it to 0.05 s.
+
+**What I checked**
+- `npm run build` passes, and the Node test passes.
+- On the page, Autoplay, Free play, the waiting in Learn, switching tabs without a reset, and Learn pausing in a hidden browser tab all looked good to me. The early-hold problem was the one thing I found.
+- Not checked yet: how 0.05 s feels, whether repeated notes and long chords play right in a real song, and the Pause button in the middle of a wait.
+
+**Decisions**
+- Wrong notes are ignored, with no penalty. Both tracks must be played in v1. A hand picker, to play only one track, comes later, once I know which track is which hand.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -337,6 +363,7 @@ I started Wednesday's plan the same day.
 
 - **Three edits at once:** for the key lighting, Claude sent three edits to `renderer.ts` in one batch even though two of them depended on the first. One got rejected (by accident on my side), so the file used `active` without defining it and would not have compiled until Claude redid the first edit. It should have sent the edits in order, or had me check before going on. I do not know why an earlier attempt stalled for about six minutes. The only error was "Tool permission stream closed", and Claude did not verify a cause.
 - **Dev server again:** I asked Claude to leave the dev server running. It hit its 30-minute background limit and stopped, and Claude twice told me Vite would hot-reload my changes without checking that the server was still up. It restarted the server with the longest timeout once it noticed.
+- **Learn mode was too easy:** the first rule let a key I was already holding count for a chord. Claude had warned me about the repeated-note case, but not that I could hold a key long before its note fell and Learn mode would never stop. I found that while testing, and Claude changed the rule to use when each key was pressed.
 
 **My own mistakes**
 - Nothing yet.

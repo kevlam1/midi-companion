@@ -18,15 +18,16 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - Commit messages have no `Co-Authored-By` line or other Claude attribution. New file names are lowercase (`log.md`). Both rules are also in `TCSS 490/CLAUDE.md`.
 
 ## Status (end of 2026-10-12)
-- Done: Monday to Wednesday of the week plan. Parse MIDI, falling notes on an 88-key keyboard, play/pause/restart/seek, piano sound in sync, and edge cases. All committed and pushed (`dff1023`). `log.md` sections 1 to 9 tell the full story.
-- Next: light up a key while its note is playing (planned for tonight, explain before building). Then Thursday: Web MIDI input from my keyboard.
-- Rest of the week: Fri Learn wait mode (pause at each chord until the right notes are held). Sat polish, including my own floating control bar (midee has one, so design my own), the log, and the portfolio card (done in a Portfolio session). Sun buffer.
+- Done: Monday to Wednesday of the week plan. Parse MIDI, falling notes on an 88-key keyboard, play/pause/restart/seek, piano sound in sync, and edge cases. Also done on Monday night: keys light while their note plays (none at time 0), white keys drawn with a 2 px gap to match the notes, notes colored by track (orange, then blue, so two hands look different), and a README. All committed and pushed (`100e78c`) and the live site is updated. `log.md` sections 1 to 10 tell the full story.
+- Next: Thursday, Web MIDI input from my keyboard. I test my piano on the site myself (planned for Tuesday or so). Start with the docs and a console-only version, then show my playing on the on-screen keyboard (color to be chosen with me).
+- Rest of the week: Fri Learn wait mode (pause at each chord until the right notes are held). Sat polish, including my own floating control bar (midee has one, so design my own), a Credits button on the page, the log, and the portfolio card (done in a Portfolio session). Sun buffer.
+- Now it's structure first; the look of the site is Saturday's polish.
 
 ## Code map
 - `src/clock.ts`: the one clock. Runs on the audio clock (`Tone.immediate()`), so the picture and the sound share it. Holds still for a short head start after Play or a seek.
 - `src/piano.ts`: loads the Salamander samples once. Each Play or seek starts a new Sampler "session", and the old one is faded out and thrown away, because Tone's `releaseAll()` can't cancel notes that already have a release scheduled. Queues notes 0.25 s ahead. The head start is `max(50 ms, 3 × baseLatency)` so it works on slower devices.
-- `src/keyboard.ts`: positions of the 88 keys. `src/renderer.ts`: draws a frame (light orange notes, darker orange on black keys).
-- `src/main.ts`: toolbar, file loading (skips drum tracks and notes outside the 88 keys), and the frame loop.
+- `src/keyboard.ts`: positions of the 88 keys. `src/renderer.ts`: draws a frame. Notes are colored per track (`TRACK_COLORS`: orange, then blue, darker on black keys), and a lit key takes the color of the note on it. White keys are drawn 1 px in from each side, the same as the notes.
+- `src/main.ts`: toolbar, file loading (skips drum tracks, empty tracks, and notes outside the 88 keys; tags each note with its track), and the frame loop.
 
 ## Web MIDI notes (checked on MDN 2026-10-12)
 - Works in Chrome 43+, Edge, and Firefox 108+. Not in Safari. Needs a secure page (HTTPS or `localhost`), and the browser asks permission.
@@ -49,7 +50,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - Sustain pedal is ignored for now. Drum tracks and notes outside the 88 keys are skipped.
 
 ## Credits rule
-Any new sound samples or assets need their license checked and a credit added to the page footer and `README.md`. Current: Salamander Grand Piano by Alexander Holm (CC BY 3.0).
+Any new sound samples or assets need their license checked and a credit added to `README.md` and on the page. The page footer credit was removed on 2026-10-12 by my choice; I plan to credit on the page another way (a Credits button, Saturday). Claude's view: CC BY 3.0 asks for a credit "reasonable to the medium", so the page is the safer place, and a README-only credit isn't confirmed enough (see `log.md`). Until the button exists, the README is the only credit. Current: Salamander Grand Piano by Alexander Holm (CC BY 3.0).
 
 ## Debugging
 The browser console shows "Slow frame", "Sync check", and "Audio latency" lines. "Sync check" should always say 0 late.

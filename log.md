@@ -231,6 +231,26 @@ I started Wednesday's plan the same day.
 
 ---
 
+## 10. Keys light up while their note plays (2026-10-12)
+
+**What I asked for**
+- Asked Claude Code to explain how it would light a key while its note is playing before it changed anything. It read `renderer.ts`, `keyboard.ts`, and `main.ts` first, then told me the plan.
+- Asked for a README at the same time.
+
+**What changed**
+- In `src/renderer.ts`, `draw()` now collects the keys whose note is playing at the current time (`note.time <= time < note.time + note.duration`) while it already loops over the notes. It then fills those keys with the same orange as their notes: light orange on white keys, darker orange on black keys. Nothing else changed, and it is one commit (`86d10e2`).
+- Rewrote `README.md` with what the app does, how to run it, and the status. The Credits section is unchanged.
+
+**What I checked**
+- `npm run build` passes with the strict type-check.
+- I loaded the C major scale and the keys light up right when the falling notes hit them.
+
+**Decisions**
+- A key stays lit while the song is paused or I seek into the middle of a note, since the light only depends on the song time. I think that is useful, and it is easy to change.
+- Not tested: a note shorter than one frame (about 16 ms) may not light at all, and I did not look at the darker black-key color on a real song yet.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -240,6 +260,8 @@ I started Wednesday's plan the same day.
 - **Dev server:** Claude told me the local server was still running after it had actually hit its time limit and stopped. It corrected this when it noticed.
 - **Fixed 50 ms head start:** Claude first proposed a fixed 50 ms, tested only against my PC. When I pointed out it has to work on other people's devices, it changed the head start to adapt to each device.
 - **Pause didn't stop the sound:** Claude told me pause, seek, and Restart stopped all sound, and section 8 says so, but that was wrong. It had read Tone.js's `releaseAll()` but not that `triggerRelease()` empties the list it uses. Claude found this itself while working on background tabs and fixed it in section 9.
+
+- **Three edits at once:** for the key lighting, Claude sent three edits to `renderer.ts` in one batch even though two of them depended on the first. One got rejected (by accident on my side), so the file used `active` without defining it and would not have compiled until Claude redid the first edit. It should have sent the edits in order, or had me check before going on. I do not know why an earlier attempt stalled for about six minutes. The only error was "Tool permission stream closed", and Claude did not verify a cause.
 
 **My own mistakes**
 - Nothing yet.

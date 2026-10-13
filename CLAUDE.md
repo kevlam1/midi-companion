@@ -43,6 +43,8 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `npm run build` type-checks (strict) and builds into `dist/`. Run it before committing.
 - `npm run preview` serves the built `dist/` locally.
 - `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
+- `node scripts/make-edge-midis.mjs` writes six edge-case songs into `test-files/` (`two-hands`, `two-hands-reversed`, `three-tracks`, `repeated-notes`, `edge-cases`, `crossing-hands`) and prints what the page should show for each.
+- `node scripts/test-learn.mjs` tests the Learn logic and the hand ordering. It prints "All Learn mode checks passed."
 
 ## Open questions
 - Speaker delay (`outputLatency`) isn't reported through Tone.js. Sync is only tested on my PC. I decided this doesn't matter to me, so I'm not chasing it.

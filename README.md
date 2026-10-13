@@ -39,6 +39,8 @@ node scripts/make-test-midi.mjs
 
 It writes `test-files/c-major-scale.mid`. Loading it on the page should show exactly those 8 notes.
 
+`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one.
+
 Your own songs can go in a `songs/` folder. It is gitignored, since MIDI arrangements are often copyrighted.
 
 ## Built with

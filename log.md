@@ -429,11 +429,31 @@ I started Friday's plan early.
 **What I checked**
 - `npm run build` passes, and `node scripts/test-learn.mjs` passes (including new checks for the hand order and `nextTime()`).
 - I tried the picker, found the cut-off, and the fix looks better to me.
-- Not checked yet: whether 0.1 s feels right, a song that doesn't have two tracks, and Autoplay after these changes.
+- 0.1 s feels better to me than 0.05 s.
+- Not checked yet: a song that doesn't have two tracks, and Autoplay after these changes. Claude made test songs for these in section 19.
 
 **Decisions**
 - "Right hand" and "Left hand" are labels based on a guess from pitch. If it is ever wrong for a song, a "Swap hands" button could fix it, but I did not build one.
 - While the song is stopped, the other hand's next notes wait with it. Only notes already sounding ring out.
+
+## 19. Test songs for the edge cases (2026-10-13)
+
+**What I asked for**
+- I said I can't check every edge case by hand, and asked Claude to make the test MIDI files for them.
+
+**What changed**
+- Added `scripts/make-edge-midis.mjs`, which writes six small songs into `test-files/`. Every note is written out in the script, so the right answer is known. Run it with `node scripts/make-edge-midis.mjs`.
+  - `two-hands.mid`: right-hand chords and long left-hand bass notes that start together with them, so waiting in Learn has notes ringing out.
+  - `two-hands-reversed.mid`: the same song with the left-hand track written first. The app orders tracks by pitch, so it should behave the same.
+  - `three-tracks.mid`: three tracks, so the hand picker should be hidden.
+  - `repeated-notes.mid`: one note repeated slowly, then fast (0.15 s apart), then a repeated two-note chord. Each repeat needs a fresh press.
+  - `edge-cases.mid`: an empty first track, a drum track, notes just outside the 88 keys (20, 109, 127) and just inside them (21, 108), a note at time 0, and 0.01 s notes.
+  - `crossing-hands.mid`: the right hand dips below the left hand. Each note should keep its own hand's color.
+- The script also reads each file back and prints what the page should show for it, using the app's own `hands.ts` and `learn.ts`. For example, `edge-cases.mid` should say "7 notes (skipped 1 drum track, 3 notes outside the piano)" with no hand picker, and `two-hands.mid` should wait at 16 chords with Both, 15 for the right hand and 5 for the left.
+
+**What I checked**
+- The files were written and read back. Claude counted the note lists by hand against the printed numbers and they matched.
+- Not checked yet: loading them in the browser to see that the page agrees.
 
 ---
 

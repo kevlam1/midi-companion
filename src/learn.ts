@@ -10,9 +10,9 @@ export interface Chord {
 
 const CHORD_WINDOW = 0.05 // notes starting within 50 ms of a chord's first note count as part of it
 
-// How early a key can be pressed and still count for a chord (s). About 10 px of falling distance.
+// How early a key can be pressed and still count for a chord (s). About 20 px of falling distance.
 // A key held down from before that doesn't count: let go and press it again.
-export const EARLY = 0.05
+export const EARLY = 0.1
 
 // Groups notes that start together. `notes` must be sorted by time (main.ts sorts them).
 export function groupChords(notes: FallingNote[]): Chord[] {
@@ -51,6 +51,11 @@ export class LearnSession {
     this.next = index === -1 ? this.chords.length : index
     this.waiting = null
     this.used.clear()
+  }
+
+  // Song time of the next chord I still have to play, or Infinity if there are none left.
+  nextTime(): number {
+    return this.chords[this.next]?.time ?? Infinity
   }
 
   // Call every frame with the song time and the keys that are down (mouse and MIDI together).

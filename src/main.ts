@@ -2,6 +2,7 @@ import './style.css'
 import { Midi } from '@tonejs/midi'
 import { Frequency, getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
+import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { LearnSession, groupChords } from './learn.ts'
 import { startMidiInput } from './midi-input.ts'
@@ -26,6 +27,11 @@ if (app) {
       <span id="time">0.00 / 0.00 s</span>
       <span id="status"></span>
       <span id="midi"></span>
+      <div id="hands" role="group" aria-label="Hand to practice">
+        <button data-hand="both" aria-pressed="true">Both</button>
+        <button data-hand="right" aria-pressed="false">Right hand</button>
+        <button data-hand="left" aria-pressed="false">Left hand</button>
+      </div>
       <span id="learn"></span>
       <span id="fps"></span>
       <button id="settings-button" aria-haspopup="dialog">Settings</button>
@@ -71,6 +77,7 @@ function start(app: HTMLDivElement): void {
   const tabs = app.querySelectorAll<HTMLButtonElement>('#tabs button')
   const settingsButton = app.querySelector<HTMLButtonElement>('#settings-button')!
   const settingsDialog = app.querySelector<HTMLDialogElement>('#settings')!
+  const handButtons = app.querySelectorAll<HTMLButtonElement>('#hands button')
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -94,6 +101,9 @@ function start(app: HTMLDivElement): void {
   let mode: Mode = 'autoplay' // Autoplay: the song plays itself. Free play: just the keyboard. Learn: the song waits for me.
   const learn = new LearnSession()
   let learnHolding = false // true while Learn mode itself has stopped the clock to wait for me
+  type Hand = 'both' | 'right' | 'left'
+  let hand: Hand = 'both' // which hand Learn mode waits for. The other hand plays by itself.
+  let soundNotes: FallingNote[] = [] // what the song plays by itself: everything in Autoplay, the other hand in Learn
   const noNotes: FallingNote[] = [] // Free play draws no falling notes
   const pressTimes = new Map<number, number>() // key held down -> song time when it was pressed (for Learn mode)
   app.dataset.mode = mode
@@ -158,14 +168,17 @@ function start(app: HTMLDivElement): void {
     }
 
     clock.pause()
-    notes = songNotes
+    const ranked = orderTracksByPitch(songNotes) // track 0 is the higher hand, the right hand
+    notes = ranked.notes
     duration = midi.duration
     clock.seek(0)
-    piano.reset(notes, 0)
     piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
-    learn.load(groupChords(notes))
+    hand = 'both'
+    syncHandButtons()
+    app.dataset.hands = String(ranked.trackCount) // the hand picker only shows for a song with two tracks
     learnHolding = false
     learnLabel.textContent = ''
+    applyHand()
 
     const skipped: string[] = []
     if (drumTracks > 0) skipped.push(`${drumTracks} drum track${drumTracks > 1 ? 's' : ''}`)
@@ -249,7 +262,7 @@ function start(app: HTMLDivElement): void {
   // tabs, so queue every remaining note now. Learn mode pauses instead (see log.md).
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) return
-    if (mode === 'autoplay' && clock.playing) piano.schedule(notes, clock, Infinity)
+    if (mode === 'autoplay' && clock.playing) piano.schedule(soundNotes, clock, Infinity)
     if (mode === 'learn') pauseSong()
   })
 
@@ -259,7 +272,7 @@ function start(app: HTMLDivElement): void {
     clock.pause()
     learnHolding = false
     learnLabel.textContent = ''
-    piano.reset(notes, clock.time)
+    piano.reset(soundNotes, clock.time)
     playButton.textContent = 'Play'
   }
 
@@ -278,14 +291,14 @@ function start(app: HTMLDivElement): void {
     mode = next
     app.dataset.mode = mode
     tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.mode === mode)))
-    learn.reset(clock.time)
+    applyHand() // Learn waits for one hand and plays the other. Autoplay plays everything.
     if (mode === 'learn' && notes.length > 0) startSong() // Learn starts running, so I can play right away
   }
   tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode as Mode)))
 
-  // The head start only matters when the song makes sound. Learn mode is silent, so it needs none.
+  // The head start only matters when the song makes sound. In Learn with both hands chosen it is silent.
   function lead(): number {
-    return mode === 'autoplay' ? piano.headStart() : 0
+    return soundNotes.length > 0 ? piano.headStart() : 0
   }
 
   seekSlider.addEventListener('pointerdown', () => {
@@ -323,10 +336,38 @@ function start(app: HTMLDivElement): void {
   // After Play or a seek: silence the piano, then queue the first notes right away
   // instead of waiting for the next frame (which is slower on 60 Hz screens).
   function resync(): void {
-    piano.reset(notes, clock.time)
     learn.reset(clock.time)
-    if (clock.playing && mode === 'autoplay') piano.schedule(notes, clock)
+    piano.reset(soundNotes, clock.time)
+    if (clock.playing) piano.schedule(soundNotes, clock, undefined, untilWait())
   }
+
+  // In Learn, the other hand is only queued up to the next chord I still have to play. If I'm late, the song
+  // stops there, and the notes already sounding ring out on their own. Nothing is queued that would have to be
+  // thrown away (which would cut the sound off), and nothing sounds ahead of the picture.
+  function untilWait(): number {
+    return mode === 'learn' ? learn.nextTime() : Infinity
+  }
+
+  // Works out what Learn mode waits for and what the song plays by itself, for the current tab and hand.
+  // Learn waits for the chosen hand. The other hand keeps playing. Right hand is track 0, left hand is track 1.
+  function applyHand(): void {
+    const practiced = (note: FallingNote): boolean =>
+      hand === 'both' || (hand === 'right' ? note.track === 0 : note.track === 1)
+    soundNotes = mode === 'learn' ? notes.filter((note) => !practiced(note)) : notes
+    learn.load(groupChords(notes.filter(practiced)))
+    resync()
+  }
+
+  function syncHandButtons(): void {
+    handButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.hand === hand)))
+  }
+  handButtons.forEach((button) =>
+    button.addEventListener('click', () => {
+      hand = button.dataset.hand as Hand
+      syncHandButtons()
+      applyHand()
+    }),
+  )
 
   function frame(): void {
     // Match the canvas to its on-screen size in real pixels so it stays sharp.
@@ -342,8 +383,6 @@ function start(app: HTMLDivElement): void {
       keysWidth = width
     }
 
-    const queued = clock.playing && mode === 'autoplay' ? piano.schedule(notes, clock) : 0
-
     // Learn mode: stop the song at each chord until I hold all of its notes, then let it go on.
     if (mode === 'learn' && (clock.playing || learnHolding)) {
       const step = learn.update(clock.time, pressTimes)
@@ -358,10 +397,13 @@ function start(app: HTMLDivElement): void {
         learnLabel.textContent = ''
         if (learnHolding) {
           learnHolding = false
-          clock.play()
+          clock.play(lead()) // the scheduling just below queues the other hand again from this chord on
         }
       }
     }
+
+    // Queue the other hand's notes, after Learn has decided whether the song stops or carries on.
+    const queued = clock.playing ? piano.schedule(soundNotes, clock, undefined, untilWait()) : 0
 
     if (clock.playing && clock.time >= duration) {
       clock.pause()

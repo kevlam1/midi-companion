@@ -115,6 +115,31 @@ body {
   font-size: 0.85rem;
 }
 
+/* Hand picker: only in Learn, and only for a song with two tracks (main.ts sets data-hands on #app). */
+#hands {
+  display: none;
+  gap: 0.25rem;
+}
+
+#app[data-mode='learn'][data-hands='2'] #hands {
+  display: flex;
+}
+
+#hands button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  background: #1c1c1c;
+  color: #bbb;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#hands button[aria-pressed='true'] {
+  border-color: #ffb870;
+  color: #fff;
+}
+
 #learn {
   color: #ffb870;
   font-size: 0.85rem;

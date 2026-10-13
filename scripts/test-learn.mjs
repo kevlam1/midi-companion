@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import pkg from '@tonejs/midi'
+import { orderTracksByPitch } from '../src/hands.ts'
 import { EARLY, LearnSession, groupChords } from '../src/learn.ts'
 
 const note = (midi, time) => ({ midi, name: '', velocity: 0.8, time, duration: 0.5, track: 0 })
@@ -93,5 +94,38 @@ const scaleChords = groupChords(scale)
 assert.equal(scaleChords.length, 8)
 assert.deepEqual(scaleChords.map((c) => c.midis[0]), [60, 62, 64, 65, 67, 69, 71, 72])
 assert.deepEqual(scaleChords.map((c) => c.time), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5])
+
+// 11b. nextTime says where the next chord I have to play is, so the other hand is never queued past it.
+learn = new LearnSession()
+assert.equal(learn.nextTime(), Infinity) // no song yet
+learn.load(chords)
+assert.equal(learn.nextTime(), 0)
+assert.equal(learn.update(0, down(0, 60, 64, 67)).kind, 'run') // played the first chord
+assert.equal(learn.nextTime(), 1)
+assert.equal(learn.update(1, none()).kind, 'wait') // waiting at the second chord: that is still the next one to play
+assert.equal(learn.nextTime(), 1)
+assert.equal(learn.update(1, down(1, 62)).kind, 'run')
+assert.equal(learn.nextTime(), 1.2)
+learn.reset(5)
+assert.equal(learn.nextTime(), Infinity) // seeked past the last chord
+
+// 12. Hands: the track with the higher average pitch becomes track 0 (the right hand), whatever the file order was.
+const withTrack = (midi, time, track) => ({ ...note(midi, time), track })
+const lowFirst = [withTrack(48, 0, 0), withTrack(50, 1, 0), withTrack(72, 0, 1), withTrack(76, 1, 1)]
+const ordered = orderTracksByPitch(lowFirst)
+assert.equal(ordered.trackCount, 2)
+assert.deepEqual(ordered.notes.map((n) => n.track), [1, 1, 0, 0]) // the low notes are now track 1, the high ones track 0
+assert.deepEqual(ordered.notes.map((n) => n.midi), [48, 50, 72, 76]) // notes and their order are untouched
+assert.equal(lowFirst[0].track, 0) // the input was not changed
+
+// 13. Already in order stays in order. One track is one hand. Equal averages keep the file order.
+const highFirst = [withTrack(72, 0, 0), withTrack(48, 0, 1)]
+assert.deepEqual(orderTracksByPitch(highFirst).notes.map((n) => n.track), [0, 1])
+assert.deepEqual(orderTracksByPitch([withTrack(60, 0, 3), withTrack(62, 1, 3)]), {
+  notes: [withTrack(60, 0, 0), withTrack(62, 1, 0)],
+  trackCount: 1,
+})
+assert.deepEqual(orderTracksByPitch([withTrack(60, 0, 0), withTrack(60, 1, 1)]).notes.map((n) => n.track), [0, 1])
+assert.deepEqual(orderTracksByPitch([]), { notes: [], trackCount: 0 })
 
 console.log('All Learn mode checks passed.')

@@ -405,6 +405,36 @@ I started Friday's plan early.
 - `npm run build` passes. I refreshed, pressed keys with no click, clicked, and played. There was no blast, and the sound was normal afterwards.
 - Notes pressed before the first click stay silent for good, and a key I'm still holding when I click stays silent until I press it again. That is on purpose.
 
+## 18. The hand picker, and not cutting off the other hand (2026-10-13)
+
+**What I asked for**
+- A hand picker for Learn mode, so I can practice one hand. I asked Claude how it knows which hand is which, and to recheck that it was the most accurate way.
+- Claude proposed that the hand I don't pick would be silent. I said no: it should still make sound and its keys should still light up.
+
+**What Claude checked (real data from my two songs)**
+- Nothing in the files says which hand is which. Both tracks are named "Piano", every note is on channel 0, and there is no text label.
+- Wherever both tracks sound at once, track 0 is higher: 100% by average pitch and 100% by highest note, and the ranges never cross, in both songs. Splitting every note by one pitch instead of by track is worse: 50 of 264 notes on the wrong side at middle C in Baldesion and 152 of 806 in The Day Will Come.
+- Before this, the colors came only from the file's track order (first track orange, second blue). It only looked like orange was the right hand because track 0 happens to be the higher one in my songs.
+
+**What changed**
+- `src/hands.ts`: on load, tracks are renumbered by average pitch, highest first. Track 0 is the right hand (orange) and track 1 the left (blue). It is a guess from pitch, tested in Node with made-up notes.
+- A "Both / Right hand / Left hand" picker, shown in Learn only for a song with exactly two tracks. Learn waits only for the chosen hand, and the other hand plays by itself and lights its keys. With Both chosen the song is silent, as before. A new song resets the picker to Both.
+- Claude split the song's sound from the notes I practice, in `main.ts` (`applyHand`).
+
+**What I found while testing**
+- The first version silenced the other hand with the same hard fade as Pause every time the song stopped to wait for me. Every time I was a beat late, a held note got chopped, and it gave me a headache.
+- The fix: nothing is reset when Learn waits. The other hand is only queued up to the next chord I still have to play (`nextTime()` in `learn.ts`, `until` in `piano.ts`). Notes already sounding ring out for their written length, and when I play the chord the clock carries on and the other hand is queued again from that chord. Pause and seeking still silence everything at once. This looks better to me.
+- I raised `EARLY` from 0.05 s to 0.1 s.
+
+**What I checked**
+- `npm run build` passes, and `node scripts/test-learn.mjs` passes (including new checks for the hand order and `nextTime()`).
+- I tried the picker, found the cut-off, and the fix looks better to me.
+- Not checked yet: whether 0.1 s feels right, a song that doesn't have two tracks, and Autoplay after these changes.
+
+**Decisions**
+- "Right hand" and "Left hand" are labels based on a guess from pitch. If it is ever wrong for a song, a "Swap hands" button could fix it, but I did not build one.
+- While the song is stopped, the other hand's next notes wait with it. Only notes already sounding ring out.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -421,6 +451,7 @@ I started Friday's plan early.
 - **Dev server again:** I asked Claude to leave the dev server running. It hit its 30-minute background limit and stopped, and Claude twice told me Vite would hot-reload my changes without checking that the server was still up. It restarted the server with the longest timeout once it noticed.
 - **Learn mode was too easy:** the first rule let a key I was already holding count for a chord. Claude had warned me about the repeated-note case, but not that I could hold a key long before its note fell and Learn mode would never stop. I found that while testing, and Claude changed the rule to use when each key was pressed.
 - **Notes piled up before the first click:** when I added MIDI playing (section 13), the code still told the piano to play notes while the browser's audio was off. They all sounded at once, loudly, when I clicked. The hint said to click, but Claude hadn't thought through what the pressed notes would do while waiting. I found it by hearing it, and Claude fixed it in section 17.
+- **The other hand got cut off:** Claude's first hand picker silenced the other hand with the same hard fade as Pause whenever Learn stopped to wait, and didn't think about how often that would happen when I'm a beat late. I found it by listening, and Claude changed it in section 18.
 
 **My own mistakes**
 - Nothing yet.

@@ -68,10 +68,11 @@ export class Piano {
 
   // Called every frame while playing: queues notes that start within the next `lookahead` seconds.
   // Returns how many notes it queued. Without a loaded sound, it only moves past the notes.
-  schedule(notes: FallingNote[], clock: Clock, lookahead = LOOKAHEAD): number {
+  // Notes at or after `until` are left for later (Learn mode uses this so it never queues past a chord it may wait at).
+  schedule(notes: FallingNote[], clock: Clock, lookahead = LOOKAHEAD, until = Infinity): number {
     const now = clock.time
     let count = 0
-    while (this.next < notes.length && notes[this.next].time < now + lookahead) {
+    while (this.next < notes.length && notes[this.next].time < now + lookahead && notes[this.next].time < until) {
       const note = notes[this.next++]
       if (note.time < now - 0.05) continue // missed (e.g. the frame loop stalled), skip rather than play late
       if (!this.session) continue

@@ -374,6 +374,24 @@ I started Friday's plan early.
 - No service worker (offline mode). It adds complexity and a risk of stale files, and I don't need it.
 - Did not load only the recordings a song needs. My keyboard can play any key, and it would save very little.
 
+## 16. Settings button with the credits (2026-10-13)
+
+**What I asked for**
+- A placeholder Settings button, with the credits at the bottom. This is the "credit behind a button" idea from earlier. Claude had said a credit that is always reachable is safer than one buried in a menu, so the button sits in the toolbar in every tab.
+
+**What changed**
+- `main.ts` and `style.css`: a Settings button at the end of the toolbar opens a panel. It says "Settings are coming soon", and the Credits section is at the bottom of the panel. The panel uses the browser's built-in `<dialog>` element, so there is no new dependency. Esc, the Close button, or a click on the dim area closes it.
+- The credits are the piano sound (Salamander Grand Piano by Alexander Holm, CC BY 3.0), plus Tone.js and `@tonejs/midi` (both MIT).
+- The old unused `#credits` styles are gone from `style.css`.
+- Claude added one sentence I hadn't asked for: the recordings are copies of the files hosted by Tone.js, and Tone.js shifts their pitch to fill in the notes between them. That is the "say when you changed it" part of CC BY 3.0, and it matches how the app works. It can be removed.
+
+**What I checked**
+- `npm run build` passes.
+- Not checked yet: how the button and the panel look in the browser, and whether the panel closes in all three ways.
+
+**Decisions**
+- The credit is now behind a button, so it is less visible than the old footer. The README still has the credit.
+
 ---
 
 ## Where AI misread me, or I had to correct course

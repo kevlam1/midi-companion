@@ -28,8 +28,32 @@ if (app) {
       <span id="midi"></span>
       <span id="learn"></span>
       <span id="fps"></span>
+      <button id="settings-button" aria-haspopup="dialog">Settings</button>
     </div>
     <canvas id="stage"></canvas>
+    <dialog id="settings">
+      <div class="dialog-header">
+        <h2>Settings</h2>
+        <form method="dialog"><button>Close</button></form>
+      </div>
+      <p class="muted">Settings are coming soon.</p>
+      <h3>Credits</h3>
+      <ul>
+        <li>
+          Piano sound:
+          <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank" rel="noopener">Salamander Grand Piano</a>
+          by Alexander Holm, licensed under
+          <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
+          The recordings are copies of the files hosted by Tone.js, and Tone.js shifts their pitch to fill in the notes between them.
+        </li>
+        <li>
+          Audio:
+          <a href="https://github.com/Tonejs/Tone.js" target="_blank" rel="noopener">Tone.js</a> (MIT).
+          MIDI file parsing:
+          <a href="https://github.com/Tonejs/Midi" target="_blank" rel="noopener">@tonejs/midi</a> (MIT).
+        </li>
+      </ul>
+    </dialog>
   `
   start(app)
 }
@@ -45,6 +69,8 @@ function start(app: HTMLDivElement): void {
   const midiLabel = app.querySelector<HTMLSpanElement>('#midi')!
   const learnLabel = app.querySelector<HTMLSpanElement>('#learn')!
   const tabs = app.querySelectorAll<HTMLButtonElement>('#tabs button')
+  const settingsButton = app.querySelector<HTMLButtonElement>('#settings-button')!
+  const settingsDialog = app.querySelector<HTMLDialogElement>('#settings')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -160,6 +186,12 @@ function start(app: HTMLDivElement): void {
     const rect = canvas.getBoundingClientRect()
     return keyAt(keys, event.clientX - rect.left, event.clientY - rect.top, keyboardLayout(canvas.clientHeight))
   }
+
+  // Settings panel (a placeholder for now). It holds the credits. Esc, the Close button, or a click on the dim area closes it.
+  settingsButton.addEventListener('click', () => settingsDialog.showModal())
+  settingsDialog.addEventListener('click', (event) => {
+    if (event.target === settingsDialog) settingsDialog.close()
+  })
 
   // Remember when each key went down, in song time, so Learn mode can tell a fresh press from a key held for ages.
   function noteDown(midi: number): void {

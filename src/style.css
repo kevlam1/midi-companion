@@ -127,15 +127,61 @@ body {
   text-align: right;
 }
 
-#credits {
-  padding: 0.25rem 1rem;
-  font-size: 0.75rem;
-  color: #777;
-  background: #1c1c1c;
+/* Settings panel. The credits live at the bottom of it. */
+#settings-button {
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
 }
 
-#credits a {
-  color: #aaa;
+#settings {
+  width: min(32rem, 90vw);
+  padding: 1rem 1.25rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: #1c1c1c;
+  color: #eee;
+}
+
+#settings::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+#settings .dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#settings h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+#settings h3 {
+  margin: 1.5rem 0 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #3a3a3a;
+  font-size: 0.95rem;
+}
+
+#settings .muted {
+  color: #888;
+}
+
+#settings ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #bbb;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+#settings li + li {
+  margin-top: 0.5rem;
+}
+
+#settings a {
+  color: #ffb870;
 }
 
 #stage {

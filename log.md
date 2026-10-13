@@ -453,7 +453,8 @@ I started Friday's plan early.
 
 **What I checked**
 - The files were written and read back. Claude counted the note lists by hand against the printed numbers and they matched.
-- Not checked yet: loading them in the browser to see that the page agrees.
+- I loaded all six in the browser and they all work well. In `crossing-hands.mid` I can see the right-hand notes going into the left half of the piano.
+- I did not say whether I tried Autoplay on them, so that stays unchecked.
 
 ---
 

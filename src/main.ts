@@ -83,7 +83,7 @@ function start(app: HTMLDivElement): void {
       statusLabel.textContent = "Couldn't load the piano sound. Songs will play without sound."
     })
     .finally(() => {
-      playButton.textContent = 'Play'
+      playButton.textContent = clock.playing || learnHolding ? 'Pause' : 'Play' // Learn may have started already
       playButton.disabled = notes.length === 0
     })
 
@@ -152,6 +152,7 @@ function start(app: HTMLDivElement): void {
     seekSlider.disabled = false
     seekSlider.max = String(duration)
     if (pianoState !== 'loading') playButton.textContent = 'Play'
+    if (mode === 'learn') startSong() // a song loaded in Learn starts running, so I can play right away
   })
 
   // Play the keys with the mouse or a finger. Dragging across the keys glides: each key plays as you reach it.
@@ -229,6 +230,14 @@ function start(app: HTMLDivElement): void {
     playButton.textContent = 'Play'
   }
 
+  // Starts the song from where it is (from the start if it already reached the end).
+  function startSong(): void {
+    if (clock.time >= duration) clock.seek(0)
+    clock.play(lead())
+    resync()
+    playButton.textContent = 'Pause'
+  }
+
   // Switching tabs pauses the song but does not restart it. I decide when to restart.
   function setMode(next: Mode): void {
     if (next === mode) return
@@ -237,6 +246,7 @@ function start(app: HTMLDivElement): void {
     app.dataset.mode = mode
     tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.mode === mode)))
     learn.reset(clock.time)
+    if (mode === 'learn' && notes.length > 0) startSong() // Learn starts running, so I can play right away
   }
   tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode as Mode)))
 
@@ -268,10 +278,7 @@ function start(app: HTMLDivElement): void {
         logLatency()
         latencyLogged = true
       }
-      if (clock.time >= duration) clock.seek(0)
-      clock.play(lead())
-      resync()
-      playButton.textContent = 'Pause'
+      startSong()
     }
   })
 

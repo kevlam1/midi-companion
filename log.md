@@ -336,6 +336,7 @@ I started Friday's plan early.
 **What changed**
 - `src/learn.ts`: groups notes that start within 50 ms into chords, and decides each frame whether to keep running or wait at a chord. `scripts/test-learn.mjs` tests it in Node (including the real C major scale file).
 - `main.ts` and `style.css`: a tab bar. Autoplay is as before. Free play hides the song controls and the falling notes. Learn stops the clock at each chord, shows "Waiting for: C4 E4 G4", and resumes when I play it. Learn mutes the song, pauses when the browser tab is hidden, and Seek and Restart reset where it waits. Switching tabs pauses the song at the same spot.
+- Learn now starts running by itself, because I kept pressing my keys on a paused song and forgetting to press Play. Loading a song while in Learn starts it right away, and so does switching to the Learn tab (from the same spot, with no reset). Autoplay still waits for Play. Claude first asked whether I meant that or a lead-in before the first chord, and I meant the first one.
 
 **What I found while testing**
 - In the first version, a key I was already holding when a chord arrived counted, so I could hold a key long before its note fell and Learn mode never stopped. Claude had flagged the repeated-note case but not this one.
@@ -344,9 +345,11 @@ I started Friday's plan early.
 **What I checked**
 - `npm run build` passes, and the Node test passes.
 - On the page, Autoplay, Free play, the waiting in Learn, switching tabs without a reset, and Learn pausing in a hidden browser tab all looked good to me. The early-hold problem was the one thing I found.
-- Not checked yet: how 0.05 s feels, whether repeated notes and long chords play right in a real song, and the Pause button in the middle of a wait.
+- 0.05 s feels right to me.
+- Not checked yet: whether repeated notes and long chords play right in a real song, and the Pause button in the middle of a wait.
 
 **Decisions**
+- Learn still pauses when I switch to another browser tab, and it stays paused when I come back. Claude offered to resume it, and I said no.
 - Wrong notes are ignored, with no penalty. Both tracks must be played in v1. A hand picker, to play only one track, comes later, once I know which track is which hand.
 
 ---

@@ -346,6 +346,7 @@ I started Friday's plan early.
 - `npm run build` passes, and the Node test passes.
 - On the page, Autoplay, Free play, the waiting in Learn, switching tabs without a reset, and Learn pausing in a hidden browser tab all looked good to me. The early-hold problem was the one thing I found.
 - 0.05 s feels right to me.
+- The auto-start in Learn works well for me.
 - Not checked yet: whether repeated notes and long chords play right in a real song, and the Pause button in the middle of a wait.
 
 **Decisions**

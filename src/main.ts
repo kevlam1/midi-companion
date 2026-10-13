@@ -53,6 +53,7 @@ function start(app: HTMLDivElement): void {
   let latencyLogged = false
   const down = new Set<number>() // pointers (mouse or fingers) currently pressed on the canvas
   const held = new Map<number, number>() // pointer id -> the key it is holding
+  const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
 
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
   playButton.textContent = 'Loading piano…'
@@ -176,6 +177,8 @@ function start(app: HTMLDivElement): void {
     if (!document.hidden) return
     for (const pointerId of [...held.keys()]) moveTo(pointerId, undefined)
     down.clear()
+    for (const midi of midiHeld) piano.release(midi)
+    midiHeld.clear()
   })
 
   // Playback mode keeps playing when you switch tabs. The browser stops our frame loop in hidden
@@ -253,7 +256,7 @@ function start(app: HTMLDivElement): void {
 
     const time = clock.time
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(ctx, width, height, keys, notes, time, new Set(held.values()))
+    draw(ctx, width, height, keys, notes, time, new Set([...held.values(), ...midiHeld]))
     timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
@@ -282,10 +285,19 @@ function start(app: HTMLDivElement): void {
 
   requestAnimationFrame(frame)
 
-  // Step 1: only report the keyboard and log its notes. Playing them comes next.
+  // My MIDI keyboard plays the same live piano as the mouse, and its keys light up the same way.
+  // A MIDI key press doesn't count as a click, so the first click anywhere on the page turns the audio on.
+  document.addEventListener('pointerdown', () => void startAudio(), { once: true })
   void startMidiInput({
-    noteOn: (midi, velocity) => console.log(`MIDI note on ${midi}, velocity ${velocity.toFixed(2)}`),
-    noteOff: (midi) => console.log(`MIDI note off ${midi}`),
+    noteOn: (midi, velocity) => {
+      if (midi < LOWEST || midi > HIGHEST) return // outside the 88 keys
+      if (getContext().rawContext.state !== 'running') midiLabel.textContent = 'Click the page once to turn on sound.'
+      midiHeld.add(midi)
+      piano.press(midi, velocity)
+    },
+    noteOff: (midi) => {
+      if (midiHeld.delete(midi)) piano.release(midi)
+    },
     status: (text) => {
       midiLabel.textContent = text
     },

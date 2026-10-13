@@ -303,6 +303,26 @@ I started Wednesday's plan the same day.
 - Not checked: whether my keyboard sends Note Off as `0x80` or as Note On with velocity 0, because the console only shows the result.
 - Unexplained: the console printed "MIDI inputs: none" and then "MIDI inputs: DONNER N25", each twice. I don't know why yet.
 
+## 13. Web MIDI input, step 2: my keyboard plays the piano (2026-10-13)
+
+**What I asked for**
+- After step 1 worked, asked for my keyboard to play the piano and light up the keys.
+- Asked whether pressing harder only changes the volume or also the pitch.
+
+**What changed**
+- In `main.ts`, a note from my keyboard calls the same `piano.press` and `piano.release` as the mouse, with its real velocity. Its keys light up in the right-hand orange, the same as the mouse. Notes outside the 88 keys are ignored.
+- A MIDI key press doesn't count as a click, and browsers only allow sound after a click, so the first click anywhere on the page turns the audio on. If I play a key before that, the toolbar says to click the page once.
+- Hiding the tab lets go of any held MIDI keys, as it already did for the mouse.
+
+**What I learned**
+- Pressing harder changes only the volume. Claude read Tone.js's code: the velocity goes to the sample's gain, and the pitch comes from a separate playback rate worked out from the note number.
+- A real piano also sounds brighter when played harder, but I have one recording per note at one loudness, so I only get louder and softer. Recordings at several loudnesses would fix that, but it is more files and licensing, so it is out of scope this week.
+
+**What I checked**
+- `npm run build` passes.
+- On my keyboard the keys light up on the site and the sound plays.
+- Not checked: playing along with a song at the same time, and whether the "click the page once" hint behaves right. Claude also didn't check two sources holding the same key. Releasing one cuts the note even if the other still holds it, which is rare.
+
 ---
 
 ## Where AI misread me, or I had to correct course

@@ -290,4 +290,5 @@ I started Wednesday's plan the same day.
 - Considered `@tonejs/piano` (the package midee uses). Dropped it because it needs the older Tone.js 14. Used Tone.js's `Sampler` with the same Salamander recordings instead.
 - Considered a generated synth sound. Chose real piano recordings.
 - Considered supporting the sustain pedal. Left it out for now.
+- Removed the piano credit footer from the page for now (`main.ts`). The credit stays in `README.md`. I plan to credit Alexander Holm on the page another way, probably a Credits button. Claude's view was that the license asks for a credit "reasonable to the medium" and that the page is the safer place, since that's where the sound plays. It couldn't confirm that a README-only credit is enough, and I chose to go ahead anyway. The unused `#credits` styles are still in `style.css` for when I add it back.
 - Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.

@@ -21,12 +21,6 @@ if (app) {
       <span id="fps"></span>
     </div>
     <canvas id="stage"></canvas>
-    <footer id="credits">
-      Piano sound:
-      <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank">Salamander Grand Piano</a>
-      by Alexander Holm,
-      <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank">CC BY 3.0</a>
-    </footer>
   `
   start(app)
 }

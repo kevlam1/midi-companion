@@ -17,9 +17,9 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - Check what you build by running it. Say what you checked and what you could not.
 - Commit messages have no `Co-Authored-By` line or other Claude attribution. New file names are lowercase (`log.md`). Both rules are also in `TCSS 490/CLAUDE.md`.
 
-## Status (end of 2026-10-12)
-- Done: Monday to Wednesday of the week plan. Parse MIDI, falling notes on an 88-key keyboard, play/pause/restart/seek, piano sound in sync, and edge cases. Also done on Monday night: keys light while their note plays (none at time 0), white keys drawn with a 2 px gap to match the notes, notes colored by track (orange, then blue, so two hands look different), and a README. All committed and pushed (`100e78c`) and the live site is updated. `log.md` sections 1 to 10 tell the full story.
-- Next: Thursday, Web MIDI input from my keyboard. I test my piano on the site myself (planned for Tuesday or so). Start with the docs and a console-only version, then show my playing on the on-screen keyboard (color to be chosen with me).
+## Status (2026-10-13)
+- Done: Monday to Wednesday of the week plan. Parse MIDI, falling notes on an 88-key keyboard, play/pause/restart/seek, piano sound in sync, and edge cases. Also done on Monday night: keys light while their note plays (none at time 0), white keys drawn with a 2 px gap to match the notes, notes colored by track (orange, then blue, so two hands look different), and a README. Also done: playing the keys with the mouse (gliding across keys works), and Web MIDI input (my DONNER N25 plays the piano and lights the keys, velocity changes volume only). Last feature commit is `3b32450`. `log.md` sections 1 to 13 tell the full story.
+- Next: Learn wait mode (started 2026-10-13, ahead of Friday). The song plays until a chord reaches the keyboard, then waits until I hold all its notes (mouse or MIDI). The song's own sound is muted in Learn mode, wrong notes are ignored, and both tracks must be played in v1. The page gets separate tabs for listening, free playing, and learning (names to be settled). The wait logic goes in `src/learn.ts` and is tested in Node.
 - Rest of the week: Fri Learn wait mode (pause at each chord until the right notes are held). Sat polish, including my own floating control bar (midee has one, so design my own), a Credits button on the page, the log, and the portfolio card (done in a Portfolio session). Sun buffer.
 - Now it's structure first; the look of the site is Saturday's polish.
 

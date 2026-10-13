@@ -240,13 +240,20 @@ I started Wednesday's plan the same day.
 **What changed**
 - In `src/renderer.ts`, `draw()` now collects the keys whose note is playing at the current time (`note.time <= time < note.time + note.duration`) while it already loops over the notes. It then fills those keys with the same orange as their notes: light orange on white keys, darker orange on black keys. Nothing else changed, and it is one commit (`86d10e2`).
 - Rewrote `README.md` with what the app does, how to run it, and the status. The Credits section is unchanged.
+- Three small tweaks after I tried it:
+  - Keys no longer light up when a song first loads. A note that starts at 0 s counted as playing while the clock was still at 0, so now nothing lights at exactly 0 s.
+  - The lit key was a couple of pixels wider than the falling note landing on it. Notes are drawn 1 px in from each side, but the lit key filled its whole width.
+  - My first fix was to paint the orange 1 px inside the key, but a light strip and the grey divider still showed. I suggested a 2 px space between the white keys. Now each white key is drawn 1 px in from each side, the same as the notes, so a lit key is exactly as wide as its note. The grey divider line is gone and the dark background shows between keys.
 
 **What I checked**
 - `npm run build` passes with the strict type-check.
 - I loaded the C major scale and the keys light up right when the falling notes hit them.
+- After the tweaks, a lit white key lines up with its note and the 2 px space between keys looks good to me.
 
 **Decisions**
 - A key stays lit while the song is paused or I seek into the middle of a note, since the light only depends on the song time. I think that is useful, and it is easy to change.
+- To stop keys lighting on load I chose "don't light at exactly 0 s" over "only light while playing", so pause and seek still show held keys.
+- Lit black keys still have a thin dark rim around the orange. I left them alone because I only asked about white keys.
 - Not tested: a note shorter than one frame (about 16 ms) may not light at all, and I did not look at the darker black-key color on a real song yet.
 
 ---
@@ -262,6 +269,7 @@ I started Wednesday's plan the same day.
 - **Pause didn't stop the sound:** Claude told me pause, seek, and Restart stopped all sound, and section 8 says so, but that was wrong. It had read Tone.js's `releaseAll()` but not that `triggerRelease()` empties the list it uses. Claude found this itself while working on background tabs and fixed it in section 9.
 
 - **Three edits at once:** for the key lighting, Claude sent three edits to `renderer.ts` in one batch even though two of them depended on the first. One got rejected (by accident on my side), so the file used `active` without defining it and would not have compiled until Claude redid the first edit. It should have sent the edits in order, or had me check before going on. I do not know why an earlier attempt stalled for about six minutes. The only error was "Tool permission stream closed", and Claude did not verify a cause.
+- **Dev server again:** I asked Claude to leave the dev server running. It hit its 30-minute background limit and stopped, and Claude twice told me Vite would hot-reload my changes without checking that the server was still up. It restarted the server with the longest timeout once it noticed.
 
 **My own mistakes**
 - Nothing yet.

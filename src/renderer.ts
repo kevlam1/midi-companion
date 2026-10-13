@@ -37,7 +37,7 @@ export function draw(
   for (const note of notes) {
     const key = keys.get(note.midi)
     if (!key) continue
-    if (note.time <= time && time < note.time + note.duration) active.add(note.midi)
+    if (time > 0 && note.time <= time && time < note.time + note.duration) active.add(note.midi)
     const bottom = keyboardTop - (note.time - time) * PIXELS_PER_SECOND
     const top = bottom - note.duration * PIXELS_PER_SECOND
     if (bottom < 0 || top > keyboardTop) continue
@@ -50,14 +50,17 @@ export function draw(
   const blackHeight = keyboardHeight * 0.62
   for (const key of keys.values()) {
     if (key.black) continue
+    // Same 1 px inset as the falling note, so a lit key is exactly as wide as its note.
     ctx.fillStyle = active.has(key.midi) ? NOTE_COLOR : '#f2f2f2'
-    ctx.fillRect(key.x, keyboardTop, key.width, keyboardHeight)
-    ctx.fillStyle = '#999'
-    ctx.fillRect(key.x + key.width - 1, keyboardTop, 1, keyboardHeight)
+    ctx.fillRect(key.x + 1, keyboardTop, key.width - 2, keyboardHeight)
   }
   for (const key of keys.values()) {
     if (!key.black) continue
-    ctx.fillStyle = active.has(key.midi) ? BLACK_KEY_NOTE_COLOR : '#1a1a1a'
+    ctx.fillStyle = '#1a1a1a'
     ctx.fillRect(key.x, keyboardTop, key.width, blackHeight)
+    if (active.has(key.midi)) {
+      ctx.fillStyle = BLACK_KEY_NOTE_COLOR
+      ctx.fillRect(key.x + 1, keyboardTop, key.width - 2, blackHeight)
+    }
   }
 }

@@ -392,6 +392,19 @@ I started Friday's plan early.
 **Decisions**
 - The credit is now behind a button, so it is less visible than the old footer. The README still has the credit.
 
+## 17. Silent keys before the first click, and a loud blast after (2026-10-13)
+
+**What I found**
+- I refreshed the page and pressed a lot of keys on my MIDI keyboard before clicking anything. I heard nothing, and the toolbar told me to click the page. Then I clicked, and every note I had pressed sounded at once, very loudly.
+- The silence is normal. Browsers keep a page's audio off until the person clicks or taps it, and a MIDI key press doesn't count as a click. The blast was a bug in my code (section 13): while the audio was off, it still told the piano to play each note. They waited on the stopped audio clock, and all of them fired when the clock started.
+
+**What changed**
+- In `main.ts`, a key pressed before the audio is on still lights up and still counts for Learn mode, but no sound is queued, and the hint tells me to click. The first click turns the audio on and clears the hint. Releasing a note that never started is harmless, because Tone.js checks first.
+
+**What I checked**
+- `npm run build` passes. I refreshed, pressed keys with no click, clicked, and played. There was no blast, and the sound was normal afterwards.
+- Notes pressed before the first click stay silent for good, and a key I'm still holding when I click stays silent until I press it again. That is on purpose.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -407,6 +420,7 @@ I started Friday's plan early.
 - **Three edits at once:** for the key lighting, Claude sent three edits to `renderer.ts` in one batch even though two of them depended on the first. One got rejected (by accident on my side), so the file used `active` without defining it and would not have compiled until Claude redid the first edit. It should have sent the edits in order, or had me check before going on. I do not know why an earlier attempt stalled for about six minutes. The only error was "Tool permission stream closed", and Claude did not verify a cause.
 - **Dev server again:** I asked Claude to leave the dev server running. It hit its 30-minute background limit and stopped, and Claude twice told me Vite would hot-reload my changes without checking that the server was still up. It restarted the server with the longest timeout once it noticed.
 - **Learn mode was too easy:** the first rule let a key I was already holding count for a chord. Claude had warned me about the repeated-note case, but not that I could hold a key long before its note fell and Learn mode would never stop. I found that while testing, and Claude changed the rule to use when each key was pressed.
+- **Notes piled up before the first click:** when I added MIDI playing (section 13), the code still told the piano to play notes while the browser's audio was off. They all sounded at once, loudly, when I clicked. The hint said to click, but Claude hadn't thought through what the pressed notes would do while waiting. I found it by hearing it, and Claude fixed it in section 17.
 
 **My own mistakes**
 - Nothing yet.
@@ -425,4 +439,5 @@ I started Friday's plan early.
 - Considered a generated synth sound. Chose real piano recordings.
 - Considered supporting the sustain pedal. Left it out for now.
 - Removed the piano credit footer from the page for now (`main.ts`). The credit stays in `README.md`. I plan to credit Alexander Holm on the page another way, probably a Credits button. Claude's view was that the license asks for a credit "reasonable to the medium" and that the page is the safer place, since that's where the sound plays. It couldn't confirm that a README-only credit is enough, and I chose to go ahead anyway. The unused `#credits` styles are still in `style.css` for when I add it back.
+- Idea for later: a welcome prompt that asks me to pick a song, so the click that opens the file picker also turns the audio on and people don't think the page is broken when their keys are silent.
 - Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.

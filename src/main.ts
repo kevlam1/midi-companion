@@ -89,6 +89,7 @@ function start(app: HTMLDivElement): void {
   const down = new Set<number>() // pointers (mouse or fingers) currently pressed on the canvas
   const held = new Map<number, number>() // pointer id -> the key it is holding
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
+  let midiStatus = '' // what the MIDI label says normally (the keyboard's name), so a hint can be cleared
   type Mode = 'autoplay' | 'free' | 'learn'
   let mode: Mode = 'autoplay' // Autoplay: the song plays itself. Free play: just the keyboard. Learn: the song waits for me.
   const learn = new LearnSession()
@@ -402,14 +403,27 @@ function start(app: HTMLDivElement): void {
 
   // My MIDI keyboard plays the same live piano as the mouse, and its keys light up the same way.
   // A MIDI key press doesn't count as a click, so the first click anywhere on the page turns the audio on.
-  document.addEventListener('pointerdown', () => void startAudio(), { once: true })
+  document.addEventListener(
+    'pointerdown',
+    () => {
+      void startAudio().then(() => {
+        midiLabel.textContent = midiStatus // the audio is on now, so drop the "click the page" hint
+      })
+    },
+    { once: true },
+  )
   void startMidiInput({
     noteOn: (midi, velocity) => {
       if (midi < LOWEST || midi > HIGHEST) return // outside the 88 keys
-      if (getContext().rawContext.state !== 'running') midiLabel.textContent = 'Click the page once to turn on sound.'
-      midiHeld.add(midi)
-      piano.press(midi, velocity)
+      midiHeld.add(midi) // the key still lights up, and still counts for Learn mode
       noteDown(midi)
+      if (getContext().rawContext.state !== 'running') {
+        // The browser keeps audio off until I click. A note played now would wait on the stopped audio clock,
+        // and every one of them would sound at once when it starts, so skip the sound.
+        midiLabel.textContent = 'Click the page once to turn on sound.'
+        return
+      }
+      piano.press(midi, velocity)
     },
     noteOff: (midi) => {
       if (midiHeld.delete(midi)) {
@@ -418,6 +432,7 @@ function start(app: HTMLDivElement): void {
       }
     },
     status: (text) => {
+      midiStatus = text
       midiLabel.textContent = text
     },
   })

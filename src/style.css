@@ -81,7 +81,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-#status {
+#status,
+#midi {
   color: #bbb;
   font-size: 0.85rem;
 }

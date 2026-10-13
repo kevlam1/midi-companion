@@ -285,6 +285,26 @@ I started Wednesday's plan the same day.
 
 ---
 
+## 12. Web MIDI input, step 1: listen only (2026-10-13)
+
+**What I asked for**
+- Told Claude my small keyboard is plugged into this desktop for testing, so `localhost` counts as a secure page and I don't need the MacBook setup yet.
+- Claude printed the docs before writing anything: MDN for `requestMIDIAccess`, `MIDIAccess`, `MIDIInput` and `MIDIMessageEvent`, the midi.org message table, the W3C spec on opening ports, and TypeScript's own types. It marked what it could not confirm: the docs I fetched don't say a Note On with velocity 0 means Note Off, or whether the permission prompt needs a click.
+
+**What changed**
+- Added `src/midi-input.ts`. It asks for MIDI access, listens to every connected keyboard (and re-checks when one is plugged in or unplugged), and reads note on and note off. A Note On with velocity 0 counts as a note off, and pedals and knobs are ignored for now. Velocity is scaled from 0 to 127 down to 0 to 1.
+- The toolbar has a new label that shows the keyboard's name, or a plain message if MIDI isn't supported, was blocked, or no keyboard was found.
+- For now the notes only print to the browser console. Playing them is step 2.
+- I used `inputs.forEach(...)` because my `tsconfig` has the `DOM` library but not `DOM.Iterable`, so I didn't have to change the config.
+
+**What I checked**
+- `npm run build` passes.
+- On `localhost` with my keyboard, the toolbar and console show it as "DONNER N25", and note on and note off print for every key. Velocity changes with how hard I press (0.38 up to 1.00).
+- Not checked: whether my keyboard sends Note Off as `0x80` or as Note On with velocity 0, because the console only shows the result.
+- Unexplained: the console printed "MIDI inputs: none" and then "MIDI inputs: DONNER N25", each twice. I don't know why yet.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**

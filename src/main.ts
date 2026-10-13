@@ -3,6 +3,7 @@ import { Midi } from '@tonejs/midi'
 import { getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
+import { startMidiInput } from './midi-input.ts'
 import { Piano } from './piano.ts'
 import { draw, type FallingNote } from './renderer.ts'
 
@@ -18,6 +19,7 @@ if (app) {
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled />
       <span id="time">0.00 / 0.00 s</span>
       <span id="status"></span>
+      <span id="midi"></span>
       <span id="fps"></span>
     </div>
     <canvas id="stage"></canvas>
@@ -33,6 +35,7 @@ function start(app: HTMLDivElement): void {
   const timeLabel = app.querySelector<HTMLSpanElement>('#time')!
   const fpsLabel = app.querySelector<HTMLSpanElement>('#fps')!
   const statusLabel = app.querySelector<HTMLSpanElement>('#status')!
+  const midiLabel = app.querySelector<HTMLSpanElement>('#midi')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -278,6 +281,15 @@ function start(app: HTMLDivElement): void {
   }
 
   requestAnimationFrame(frame)
+
+  // Step 1: only report the keyboard and log its notes. Playing them comes next.
+  void startMidiInput({
+    noteOn: (midi, velocity) => console.log(`MIDI note on ${midi}, velocity ${velocity.toFixed(2)}`),
+    noteOff: (midi) => console.log(`MIDI note off ${midi}`),
+    status: (text) => {
+      midiLabel.textContent = text
+    },
+  })
 
   // Debug: did every note get queued before it was due?
   function logSyncStats(): void {

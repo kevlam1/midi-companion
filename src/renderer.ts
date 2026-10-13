@@ -29,6 +29,7 @@ export function draw(
   ctx.fillRect(0, 0, width, height)
 
   // Falling notes. A note's bottom edge reaches the keyboard exactly at note.time.
+  const active = new Set<number>() // keys whose note is playing right now
   ctx.save()
   ctx.beginPath()
   ctx.rect(0, 0, width, keyboardTop)
@@ -36,6 +37,7 @@ export function draw(
   for (const note of notes) {
     const key = keys.get(note.midi)
     if (!key) continue
+    if (note.time <= time && time < note.time + note.duration) active.add(note.midi)
     const bottom = keyboardTop - (note.time - time) * PIXELS_PER_SECOND
     const top = bottom - note.duration * PIXELS_PER_SECOND
     if (bottom < 0 || top > keyboardTop) continue
@@ -48,13 +50,14 @@ export function draw(
   const blackHeight = keyboardHeight * 0.62
   for (const key of keys.values()) {
     if (key.black) continue
-    ctx.fillStyle = '#f2f2f2'
+    ctx.fillStyle = active.has(key.midi) ? NOTE_COLOR : '#f2f2f2'
     ctx.fillRect(key.x, keyboardTop, key.width, keyboardHeight)
     ctx.fillStyle = '#999'
     ctx.fillRect(key.x + key.width - 1, keyboardTop, 1, keyboardHeight)
   }
-  ctx.fillStyle = '#1a1a1a'
   for (const key of keys.values()) {
-    if (key.black) ctx.fillRect(key.x, keyboardTop, key.width, blackHeight)
+    if (!key.black) continue
+    ctx.fillStyle = active.has(key.midi) ? BLACK_KEY_NOTE_COLOR : '#1a1a1a'
+    ctx.fillRect(key.x, keyboardTop, key.width, blackHeight)
   }
 }

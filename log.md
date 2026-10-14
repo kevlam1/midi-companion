@@ -552,6 +552,31 @@ I started Friday's plan early.
 - A row dropped in a corner stays a row at the top or bottom, and a column stays a column at the side. To switch, I drag it to a side or to the top or bottom.
 - Claude took 50% to mean 15 px for the middle zone. The corners had gone from 10 to 20, which is 100%, and Claude said so.
 
+## 24. NOW PLAYING and a Tracks popup (2026-10-13)
+
+**What I asked for**
+- The header should show the name of the song (the MIDI file), in a "NOW PLAYING" pill or something like it.
+- In Autoplay I should be able to see the tracks and channels, see their note counts, and turn any of them off or on.
+
+**What Claude checked first (real data)**
+- It printed the raw track fields from my two songs and the test songs. Each track has a name, a channel (0 to 15 in the library, so drums show as 9), an instrument (name, family, percussion) and a list of notes. My songs' track names end in a hidden NUL character, so Claude strips it. Both tracks in each of my songs are called "Piano" on channel 1, so the popup also shows each track's pitch range to tell them apart.
+- The MIDI library splits any track that mixes channels or instruments (`splitTracks` in its source), so every track it gives is one channel and one instrument, and one list can show both tracks and channels.
+
+**What changed**
+- `main.ts` and `style.css`: a NOW PLAYING pill in the header with the song's name. It drops `.mid`, turns underscores into spaces, cuts long names with "...", and shows the exact file name when I hover. The sample shows as "Sample song". It is hidden on the welcome screen and in Free play.
+- A "Tracks" button next to Open song opens a popup. Each track has a color swatch (the color of its notes), its name, instrument, channel, pitch range, note count, and a checkbox. A track I turn off disappears from the falling notes, the sound, and Learn mode. At least one track has to stay on. Drum tracks are listed greyed out as skipped, and notes outside the piano are counted per track. Tracks are numbered from the highest notes to the lowest. Track names go in as text, never as HTML, because they come from the file.
+- The hand picker follows the tracks that are on: it shows only when exactly two are on, and goes back to Both whenever I switch a track. Right hand is the higher of the two.
+- `hands.ts` now also returns which file track each ranked track came from, and `renderer.ts` shares the note color with the popup's swatches. `scripts/test-learn.mjs` has new checks for the track order.
+- Claude made the Tracks button available in Learn as well as Autoplay, because the switches change what Learn waits for, and the state would otherwise be hidden there.
+
+**What I checked**
+- `npm run build` passes, and the four test scripts pass.
+- I tried it in the browser and I like the changes.
+- I did not report on `edge-cases.mid` (a drum track and out-of-range notes) or `three-tracks.mid`, so those are not confirmed.
+
+**Decisions**
+- Turning a track on or off during Autoplay queues the sound again from the current spot, like a seek, so a note being held is cut off.
+
 ---
 
 ## Where AI misread me, or I had to correct course

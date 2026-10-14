@@ -12,6 +12,8 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Play, pause, restart, and a seek slider.
 - Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Play it with a MIDI keyboard (Chrome or Edge; the page asks permission). Keys light up and play, and harder presses are louder.
+- The header shows a NOW PLAYING pill with the name of the song.
+- A Tracks popup lists each track with its instrument, MIDI channel, pitch range and note count, and lets you turn tracks off or on. Turned-off tracks leave the falling notes, the sound, and Learn mode.
 - The playback controls are in a floating bar you can drag by its grip. It snaps to the top, bottom, left or right (a column on the sides), into the corners, and to the middle of each edge, and it remembers where you left it. The header and the bar are see-through, so the falling notes show behind them.
 - A volume slider, and a speed button (0.25x to 2x) that steps to the next speed on a click and the previous one on a right click. Notes keep their pitch when the speed changes.
 - A sustain pedal for the notes you play: the space bar, or a MIDI pedal. It does not change the song's own sound.

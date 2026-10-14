@@ -45,7 +45,7 @@ body {
 }
 
 /* Free play has no song, and the welcome screen has no mode yet, so the song controls are hidden. */
-#app:is([data-mode='free'], [data-mode='welcome']) :is(#open-song, #play, #restart, #seek, #time, #speed, #status) {
+#app:is([data-mode='free'], [data-mode='welcome']) :is(#open-song, #tracks-button, #now-playing, #play, #restart, #seek, #time, #speed, #status) {
   display: none;
 }
 
@@ -407,6 +407,65 @@ body {
   color: #ffb870;
 }
 
+/* The Tracks popup: one row per track with a switch, a color swatch (the color of its notes), and its note count. */
+#track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #111;
+  cursor: pointer;
+}
+
+.track-row.skipped {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.track-row input {
+  flex: none;
+  accent-color: #ffb870;
+  cursor: pointer;
+}
+
+.track-row input:disabled {
+  cursor: not-allowed;
+}
+
+.swatch {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 3px;
+}
+
+.track-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.track-main small {
+  color: #999;
+}
+
+.track-count {
+  flex: none;
+  color: #bbb;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The song popup: a box to drop a file on, or click to browse. */
 #drop-zone {
   display: flex;
@@ -534,6 +593,31 @@ body {
   background: #111;
   color: #bbb;
   font-size: 0.85rem;
+}
+
+.pill[hidden] {
+  display: none;
+}
+
+/* The NOW PLAYING pill in the header: a small orange tag, then the song's name (cut with ... if it is long). */
+#now-playing {
+  max-width: 28rem;
+  border-color: rgb(255 184 112 / 0.5);
+  color: #eee;
+}
+
+.pill-tag {
+  flex: none;
+  color: #ffb870;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+#song-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pill .dot {

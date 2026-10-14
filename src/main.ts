@@ -8,7 +8,7 @@ import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './
 import { LearnSession, groupChords } from './learn.ts'
 import { startMidiInput } from './midi-input.ts'
 import { DEFAULT_VOLUME, Piano } from './piano.ts'
-import { draw, type FallingNote } from './renderer.ts'
+import { draw, trackColor, type FallingNote } from './renderer.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -22,7 +22,12 @@ if (app) {
     </div>
     <div id="toolbar">
       <h1>MIDI Companion</h1>
+      <div id="now-playing" class="pill" hidden>
+        <span class="pill-tag">NOW PLAYING</span>
+        <span id="song-name"></span>
+      </div>
       <button id="open-song">Open song</button>
+      <button id="tracks-button" disabled>Tracks</button>
       <span id="status"></span>
       <span id="midi"></span>
       <div id="hands" role="group" aria-label="Hand to practice">
@@ -95,6 +100,14 @@ if (app) {
         <button data-open="learn">Learn</button>
       </div>
     </dialog>
+    <dialog id="tracks-dialog" class="panel">
+      <div class="dialog-header">
+        <h2>Tracks</h2>
+        <form method="dialog"><button>Close</button></form>
+      </div>
+      <p id="track-summary" class="muted"></p>
+      <div id="track-list"></div>
+    </dialog>
     <dialog id="settings" class="panel">
       <div class="dialog-header">
         <h2>Settings</h2>
@@ -156,6 +169,12 @@ function start(app: HTMLDivElement): void {
   const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
   const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
   volumeSlider.value = String(DEFAULT_VOLUME)
+  const nowPlaying = app.querySelector<HTMLDivElement>('#now-playing')!
+  const songName = app.querySelector<HTMLSpanElement>('#song-name')!
+  const tracksButton = app.querySelector<HTMLButtonElement>('#tracks-button')!
+  const tracksDialog = app.querySelector<HTMLDialogElement>('#tracks-dialog')!
+  const trackList = app.querySelector<HTMLDivElement>('#track-list')!
+  const trackSummary = app.querySelector<HTMLParagraphElement>('#track-summary')!
   const header = app.querySelector<HTMLDivElement>('#header')!
   const stageArea = app.querySelector<HTMLDivElement>('#stage-area')!
   const controls = app.querySelector<HTMLDivElement>('#controls')!
@@ -166,7 +185,24 @@ function start(app: HTMLDivElement): void {
   const clock = new Clock(immediate)
   const piano = new Piano()
   let pianoState: 'loading' | 'ready' | 'failed' = 'loading'
-  let notes: FallingNote[] = []
+  // What the Tracks popup shows about each track that has piano notes. A track's id is its place when the tracks are
+  // ranked by pitch, highest first (so it is also the number its notes carry).
+  interface TrackInfo {
+    id: number
+    name: string
+    channel: number // 1 to 16, as MIDI keyboards and software show it
+    instrument: string
+    count: number // notes on the piano
+    outside: number // notes outside the 88 keys, which are skipped
+    low: number // lowest and highest key, as MIDI numbers
+    high: number
+  }
+  type MidiTrack = Midi['tracks'][number]
+  let rankedNotes: FallingNote[] = [] // every playable note in the song
+  let trackInfo: TrackInfo[] = []
+  let skippedDrums: { name: string; channel: number; count: number }[] = []
+  const enabledTracks = new Set<number>() // the tracks switched on in the Tracks popup
+  let notes: FallingNote[] = [] // the notes of the tracks that are switched on
   let duration = 0
   let keys = new Map<number, Key>()
   let keysWidth = 0
@@ -568,9 +604,10 @@ function start(app: HTMLDivElement): void {
     if (event.target === modeDialog) modeDialog.close()
   })
 
-  // Loads a song from MIDI file data, from the popup or the sample. `name` is only used in messages.
+  // Loads a song from MIDI file data, from the popup or the sample. `name` is used in messages, and `label` is the
+  // name shown in the NOW PLAYING pill (the file name unless it is the sample).
   // Returns an error message if it couldn't load the song, or null if it did.
-  function loadSong(data: ArrayBuffer, name: string): string | null {
+  function loadSong(data: ArrayBuffer, name: string, label = name): string | null {
     let midi: Midi
     try {
       midi = new Midi(data)
@@ -583,19 +620,19 @@ function start(app: HTMLDivElement): void {
     console.log(describe(name, midi))
 
     // Skip drum tracks (their notes are drum sounds, not piano keys) and notes outside the 88 keys.
-    const drumTracks = midi.tracks.filter((t) => t.instrument.percussion && t.notes.length > 0).length
-    const allNotes = midi.tracks
-      .filter((track) => !track.instrument.percussion && track.notes.length > 0)
-      .flatMap((track, trackIndex) =>
-        track.notes.map((n) => ({
-          midi: n.midi,
-          name: n.name,
-          velocity: n.velocity,
-          time: n.time,
-          duration: n.duration,
-          track: trackIndex, // position among the tracks kept, so drum or empty tracks don't shift colors
-        })),
-      )
+    const drums = midi.tracks.filter((t) => t.instrument.percussion && t.notes.length > 0)
+    const drumTracks = drums.length
+    const playable = midi.tracks.filter((track) => !track.instrument.percussion && track.notes.length > 0)
+    const allNotes = playable.flatMap((track, trackIndex) =>
+      track.notes.map((n) => ({
+        midi: n.midi,
+        name: n.name,
+        velocity: n.velocity,
+        time: n.time,
+        duration: n.duration,
+        track: trackIndex, // position among the tracks kept, so drum or empty tracks don't shift colors
+      })),
+    )
     const songNotes = allNotes
       .filter((n) => n.midi >= LOWEST && n.midi <= HIGHEST)
       .sort((a, b) => a.time - b.time)
@@ -609,7 +646,21 @@ function start(app: HTMLDivElement): void {
 
     clock.pause()
     const ranked = orderTracksByPitch(songNotes) // track 0 is the higher hand, the right hand
-    notes = ranked.notes
+    rankedNotes = ranked.notes
+    trackInfo = ranked.order.map((fileTrack, id) => describeTrack(playable[fileTrack], id))
+    skippedDrums = drums.map((track) => ({
+      name: cleanTrackName(track.name),
+      channel: track.channel + 1,
+      count: track.notes.length,
+    }))
+    enabledTracks.clear()
+    for (const info of trackInfo) enabledTracks.add(info.id) // every track starts switched on
+    notes = rankedNotes
+    renderTrackList()
+    songName.textContent = prettyName(label)
+    nowPlaying.title = label
+    nowPlaying.hidden = false
+    tracksButton.disabled = false
     duration = midi.duration
     clock.seek(0)
     piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
@@ -636,12 +687,129 @@ function start(app: HTMLDivElement): void {
     return null
   }
 
+  // The file name without .mid, and with spaces for underscores, for the pill. The full name is its hover text.
+  function prettyName(label: string): string {
+    return label.replace(/\.midi?$/i, '').replace(/_/g, ' ').trim() || label
+  }
+
+  // Track names in files can end with a hidden NUL character (both of my songs do), so drop control characters.
+  function cleanTrackName(name: string): string {
+    return name.replace(/[\u0000-\u001f]/g, '').trim()
+  }
+
+  function describeTrack(track: MidiTrack, id: number): TrackInfo {
+    let low = Infinity
+    let high = -Infinity
+    let count = 0
+    for (const note of track.notes) {
+      if (note.midi < LOWEST || note.midi > HIGHEST) continue
+      count++
+      low = Math.min(low, note.midi)
+      high = Math.max(high, note.midi)
+    }
+    const instrument = track.instrument.name
+    return {
+      id,
+      name: cleanTrackName(track.name),
+      channel: track.channel + 1,
+      instrument: instrument.charAt(0).toUpperCase() + instrument.slice(1),
+      count,
+      outside: track.notes.length - count,
+      low,
+      high,
+    }
+  }
+
+  // The Tracks popup: each track with its note count, and a switch to turn it off or on. File text goes in with
+  // textContent, never as HTML, because track names come from the file.
+  const trackBoxes = new Map<number, HTMLInputElement>()
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
+
+  function renderTrackList(): void {
+    trackList.replaceChildren()
+    trackBoxes.clear()
+    for (const info of trackInfo) {
+      const row = document.createElement('label')
+      row.className = 'track-row'
+      const box = document.createElement('input')
+      box.type = 'checkbox'
+      box.checked = true
+      box.addEventListener('change', () => setTrackEnabled(info.id, box.checked))
+      trackBoxes.set(info.id, box)
+      const swatch = document.createElement('span')
+      swatch.className = 'swatch'
+      swatch.style.background = trackColor(info.id)
+      const main = document.createElement('span')
+      main.className = 'track-main'
+      const title = document.createElement('strong')
+      title.textContent = info.name ? `Track ${info.id + 1} · ${info.name}` : `Track ${info.id + 1}`
+      const details = document.createElement('small')
+      const range = `${Frequency(info.low, 'midi').toNote()} to ${Frequency(info.high, 'midi').toNote()}`
+      details.textContent =
+        `${info.instrument} · channel ${info.channel} · ${range}` +
+        (info.outside > 0 ? ` · ${plural(info.outside, 'note')} outside the piano skipped` : '')
+      main.append(title, details)
+      const count = document.createElement('span')
+      count.className = 'track-count'
+      count.textContent = plural(info.count, 'note')
+      row.append(box, swatch, main, count)
+      trackList.append(row)
+    }
+    for (const drum of skippedDrums) {
+      const row = document.createElement('div')
+      row.className = 'track-row skipped'
+      const main = document.createElement('span')
+      main.className = 'track-main'
+      const title = document.createElement('strong')
+      title.textContent = drum.name ? `Drums · ${drum.name}` : 'Drums'
+      const details = document.createElement('small')
+      details.textContent = `Channel ${drum.channel} · drum sounds, not piano keys, so skipped`
+      main.append(title, details)
+      const count = document.createElement('span')
+      count.className = 'track-count'
+      count.textContent = plural(drum.count, 'note')
+      row.append(main, count)
+      trackList.append(row)
+    }
+    updateTrackList()
+  }
+
+  // Keeps the switches and the summary line in step with enabledTracks.
+  function updateTrackList(): void {
+    for (const [id, box] of trackBoxes) {
+      box.checked = enabledTracks.has(id)
+      box.disabled = enabledTracks.size === 1 && enabledTracks.has(id) // at least one track has to stay on
+      box.title = box.disabled ? 'At least one track has to stay on.' : ''
+    }
+    trackSummary.textContent =
+      `${enabledTracks.size} of ${trackInfo.length} tracks on. Listed from the highest notes to the lowest. ` +
+      'Turning a track off removes its notes from the falling notes, the sound, and Learn mode.'
+  }
+
+  // Switching a track on or off changes which notes the song has, so the hand picker goes back to both hands
+  // (it needs exactly two tracks on) and what Learn waits for and what plays by itself is worked out again.
+  function setTrackEnabled(id: number, on: boolean): void {
+    if (on) enabledTracks.add(id)
+    else if (enabledTracks.size > 1) enabledTracks.delete(id)
+    notes = rankedNotes.filter((note) => enabledTracks.has(note.track))
+    app.dataset.hands = String(enabledTracks.size)
+    hand = 'both'
+    syncHandButtons()
+    updateTrackList()
+    applyHand()
+  }
+
+  tracksButton.addEventListener('click', () => tracksDialog.showModal())
+  tracksDialog.addEventListener('click', (event) => {
+    if (event.target === tracksDialog) tracksDialog.close()
+  })
+
   // The sample song is a small two-hand exercise I made (public/demo/two-hands.mid), for visitors without a MIDI file.
   async function loadSample(): Promise<void> {
     try {
       const response = await fetch('/demo/two-hands.mid')
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const error = loadSong(await response.arrayBuffer(), 'the sample song')
+      const error = loadSong(await response.arrayBuffer(), 'the sample song', 'Sample song')
       if (error) songError.textContent = error
       else songDialog.close()
     } catch (error) {
@@ -921,10 +1089,12 @@ function start(app: HTMLDivElement): void {
   }
 
   // Works out what Learn mode waits for and what the song plays by itself, for the current tab and hand.
-  // Learn waits for the chosen hand. The other hand keeps playing. Right hand is track 0, left hand is track 1.
+  // Learn waits for the chosen hand. The other hand keeps playing. The hand picker only shows with exactly two
+  // tracks on: the one with the higher notes is the right hand, the other the left hand.
   function applyHand(): void {
+    const [rightTrack, leftTrack] = [...enabledTracks].sort((a, b) => a - b)
     const practiced = (note: FallingNote): boolean =>
-      hand === 'both' || (hand === 'right' ? note.track === 0 : note.track === 1)
+      hand === 'both' || (hand === 'right' ? note.track === rightTrack : note.track === leftTrack)
     soundNotes = mode === 'learn' ? notes.filter((note) => !practiced(note)) : notes
     learn.load(groupChords(notes.filter(practiced)))
     resync()

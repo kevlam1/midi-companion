@@ -114,6 +114,7 @@ const withTrack = (midi, time, track) => ({ ...note(midi, time), track })
 const lowFirst = [withTrack(48, 0, 0), withTrack(50, 1, 0), withTrack(72, 0, 1), withTrack(76, 1, 1)]
 const ordered = orderTracksByPitch(lowFirst)
 assert.equal(ordered.trackCount, 2)
+assert.deepEqual(ordered.order, [1, 0]) // new track 0 was track 1 in the file, and new track 1 was track 0
 assert.deepEqual(ordered.notes.map((n) => n.track), [1, 1, 0, 0]) // the low notes are now track 1, the high ones track 0
 assert.deepEqual(ordered.notes.map((n) => n.midi), [48, 50, 72, 76]) // notes and their order are untouched
 assert.equal(lowFirst[0].track, 0) // the input was not changed
@@ -124,8 +125,13 @@ assert.deepEqual(orderTracksByPitch(highFirst).notes.map((n) => n.track), [0, 1]
 assert.deepEqual(orderTracksByPitch([withTrack(60, 0, 3), withTrack(62, 1, 3)]), {
   notes: [withTrack(60, 0, 0), withTrack(62, 1, 0)],
   trackCount: 1,
+  order: [3],
 })
 assert.deepEqual(orderTracksByPitch([withTrack(60, 0, 0), withTrack(60, 1, 1)]).notes.map((n) => n.track), [0, 1])
-assert.deepEqual(orderTracksByPitch([]), { notes: [], trackCount: 0 })
+assert.deepEqual(orderTracksByPitch([]), { notes: [], trackCount: 0, order: [] })
+assert.deepEqual(orderTracksByPitch(highFirst).order, [0, 1]) // already in order
+// Three tracks: the order lists file track numbers from highest average pitch to lowest.
+const three = [withTrack(40, 0, 0), withTrack(80, 0, 1), withTrack(60, 0, 2)]
+assert.deepEqual(orderTracksByPitch(three).order, [1, 2, 0])
 
 console.log('All Learn mode checks passed.')

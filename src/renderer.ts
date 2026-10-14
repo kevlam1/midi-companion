@@ -22,6 +22,11 @@ function noteColor(track: number, black: boolean): string {
   return black ? colors.black : colors.white
 }
 
+// The color of a track's notes on white keys, for the track list's swatches.
+export function trackColor(track: number): string {
+  return noteColor(track, false)
+}
+
 // Draws one frame. Sizes are in CSS pixels. `pressed` is the keys held by hand (mouse or MIDI keyboard).
 export function draw(
   ctx: CanvasRenderingContext2D,

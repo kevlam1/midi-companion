@@ -4,7 +4,8 @@ import type { FallingNote } from './renderer.ts'
 // higher average pitch is almost always the right hand, so tracks are renumbered by average pitch,
 // highest first. Track 0 is then the right hand (and gets the first color) whatever order the file had.
 // It is a guess from pitch, not something stored in the file.
-export function orderTracksByPitch(notes: FallingNote[]): { notes: FallingNote[]; trackCount: number } {
+// `order[i]` is the track number the notes had in the file for the track now numbered i.
+export function orderTracksByPitch(notes: FallingNote[]): { notes: FallingNote[]; trackCount: number; order: number[] } {
   const sums = new Map<number, { total: number; count: number }>()
   for (const note of notes) {
     const sum = sums.get(note.track) ?? { total: 0, count: 0 }
@@ -22,5 +23,6 @@ export function orderTracksByPitch(notes: FallingNote[]): { notes: FallingNote[]
   return {
     notes: notes.map((note) => ({ ...note, track: newIndex.get(note.track) ?? note.track })),
     trackCount: ranked.length,
+    order: ranked,
   }
 }

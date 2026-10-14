@@ -12,16 +12,17 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Play, pause, restart, and a seek slider.
 - Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Play it with a MIDI keyboard (Chrome or Edge; the page asks permission). Keys light up and play, and harder presses are louder.
-- The header shows a NOW PLAYING pill with the name of the song.
+- The header shows the song's tempo (BPM, from the MIDI file) and a NOW PLAYING pill with the whole song name, centered under the tabs.
+- A metronome on the control bar, with a tempo box (20 to 240 BPM). In **Free** mode it starts clicking the moment it is turned on and runs by itself, in every mode including Free play, at the song's tempo or one you type. In **Song** mode it follows the song's own beats (from the file's tempo and time signature), clicks only while the song plays, and stays on the beat when you skip or change speed. Tone.js has no metronome, so this one is built from a short synth click and the audio clock.
 - A Tracks popup lists each track with its instrument, MIDI channel, pitch range and note count, and lets you turn tracks off or on. Turned-off tracks leave the falling notes, the sound, and Learn mode.
 - The playback controls are in a floating bar you can drag by its grip. It snaps to the top, bottom, left or right (a column on the sides), into the corners, and to the middle of each edge, and it remembers where you left it. The header and the bar are see-through, so the falling notes show behind them.
 - A volume slider, and a speed button (0.25x to 2x) that steps to the next speed on a click and the previous one on a right click. Notes keep their pitch when the speed changes.
 - A sustain pedal for the notes you play: the space bar, or a MIDI pedal. It does not change the song's own sound.
 - Play it with your computer keyboard: Z to M and Q to U are the white and black keys, and the up and down arrows change octave. The layout is listed in Settings, and Settings can switch the computer keyboard off.
 - Three tabs: **Autoplay** (the song plays itself), **Free play** (just the keyboard), and **Learn** (the song waits at each chord until you play its notes). Switching tabs keeps your place in the song.
-- The page opens on a small welcome card with no mode picked yet. It shows whether a MIDI keyboard was found. Pick a mode, play any key, or drop a `.mid` file anywhere on the page to get started. Choosing Autoplay with no song loaded opens the song popup.
+- The page opens on a small welcome card with no mode picked yet. It shows the three modes, whether a MIDI keyboard was found, a list of your past songs and the sample songs, and a dashed box: click it to browse for a `.mid` file, or drop one anywhere on the page. Picking a song asks which mode to open it in. Choosing Autoplay with no song loaded opens the song popup.
 - In Learn, for a song with two tracks, a hand picker lets you practice just the right hand or just the left. The other hand plays by itself. Which track is which hand is a guess from pitch, since MIDI files don't say.
-- A Settings panel holds: the note colors and a theme color (the glow behind the notes, the welcome buttons, the play button and the sliders), a switch for the glow, glow along the black bar, and the light from a lit key, how early a key can be pressed in Learn (Precise 0.025 s, up to 0.2 s, or a custom value), playing a chord note by note, key names on the keys, on the notes, on both or off, showing the "Waiting for" display, the computer keyboard switch, the computer keyboard layout, and the credits. What you pick is remembered in the browser.
+- A Settings panel holds: the note colors and a theme color (it colors the glow behind the notes and the whole interface: tabs, pills, buttons, sliders, the snap guides), a switch for the glow, glow along the black bar, and the light from a lit key, how early a key can be pressed in Learn (Precise 0.025 s, up to 0.2 s, or a custom value), playing a chord note by note, key names on the keys, on the notes, on both or off, showing the "Waiting for" display, the computer keyboard switch, the computer keyboard layout, and the credits. What you pick is remembered in the browser.
 - In Free play, the notes you play rise up from the keys while you hold them and float away when you let go.
 - In Learn, a "Waiting for" display names the notes the song is waiting for. You can drag it anywhere, and it snaps to two spots (under the header and above the piano) while you move it.
 - Autoplay and Learn keep separate songs, each with its own tracks and place. A mode with no song yet can start with the other mode's song (a Settings switch).
@@ -50,7 +51,7 @@ node scripts/make-test-midi.mjs
 
 It writes `test-files/c-major-scale.mid`. Loading it on the page should show exactly those 8 notes.
 
-`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, colors, the computer keyboard, the clock, the sustain pedal, and the song history).
+`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, colors, the computer keyboard, the clock, the sustain pedal, the song history, and tempo and beats).
 
 Songs that are fine to share can go in the `samplesongs/` folder, which is committed and shows up in the song popup for everyone. A `songs/` folder is gitignored, for private files, since MIDI arrangements are often copyrighted.
 

@@ -615,6 +615,32 @@ I started Friday's plan early.
 - Widening Settings, not a third row, to make room around the swap button.
 - The theme applies to the glow, the welcome buttons, the play button and the sliders. The tabs, pills and Settings accents stay orange.
 
+## 26. Tempo, a metronome, and the welcome song list (2026-10-14)
+
+**What I asked for**
+- The tempo (BPM) from the MIDI file in the top header. A metronome on the control bar ("see if Tone.js has it, if not, find a way"), with a tempo box up to 240 BPM like the volume box. The welcome screen should have a section to play my past songs or the samples, and the same dashed click-or-drop box as the song popup. The theme should color the whole interface.
+- Then I tuned them. The metronome should just run the moment it is turned on, whether or not I am playing, and Free play should have it. Later I asked for both a free-running version and a version synced to the song, chosen from the dock.
+
+**What Claude checked first (real data)**
+- Tone.js has no metronome. Claude searched its type files for the word and found nothing. It has a `Transport` with a tempo and `scheduleRepeat`, which are building blocks and not a metronome.
+- It printed the real tempo data from `@tonejs/midi` for my songs. Tempo events have a bpm that is a float (130.00013 for a tempo that is really 130), a tick and a time in seconds. Some songs change tempo ("Wet Hands" goes 72, 36, 72). Time signatures vary: 3/8 then 3/4, 2/4 in the middle, or none at all. `ticksToSeconds` follows the tempo changes.
+
+**What changed**
+- A tempo chip in the header: the file's tempo at the current point in the song times the playback speed, with the file's own tempo on hover.
+- The metronome (`metronome.ts`, built from a short synth click and the audio clock, like the piano). Its **Free** mode runs by itself from the moment it is turned on, in every mode. Its **Song** mode follows the song's own beats, built from the file's tempo and time signature events (`tempo.ts`), clicks only while the song plays, and re-aligns after a skip, Restart or speed change. A chip on the dock switches between them. Song mode is greyed out in Free play or with no song. The tempo box takes 20 to 240 BPM (typing more shows 240), and an Auto chip goes back to the song's tempo.
+- The welcome card has a list of "Your songs" and "Sample songs", and a dashed box that opens the file browser, like the song popup's. Picking a song asks which mode to open it in.
+- The theme now colors the whole interface through the accent variable (tabs, pills, hover and focus colors, switches, snap guides, the number boxes, the play button, the sliders), where before I had left the tabs and pills orange.
+- The welcome title is styled like the header title. The volume and BPM boxes were sized by their digits so the last digit isn't cut.
+- The three sample songs I put in `samplesongs/` (Dialtone, Living Mice, Wet Hands) are now committed, which makes them public on GitHub and on the live site. I decided to add them. Claude said it could not tell where they came from or whether they are someone else's arrangements, and it did not verify that.
+
+**What I checked**
+- `npm run build` passes, and all seven test scripts pass. The new `test-tempo.mjs` covers the beat times on a real file, odd time signatures, finding the next beat after a skip, and the 20 to 240 limits. It caught a real bug in Claude's code (a time signature with 0 on the bottom made an endless beat).
+- Not checked: how any of the clicks sound, or whether Song mode really lines up with the song after a skip. Claude could not run a browser or listen. The clipped digit in the number boxes took several rounds, and none of the fixes was seen by Claude, so each was reasoned from the layout.
+
+**Decisions**
+- The metronome starts in Free mode. A tempo I type stays across songs until Auto, and it is real beats per minute, not scaled by the playback speed.
+- Considered a folder picker for my own songs. Not built.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -641,6 +667,9 @@ I started Friday's plan early.
 - **Small details I had to point out:** the swap button's hover color was see-through, so the divider line showed behind it. The "Seconds early" box was inside a label as wide as the row, so a click beside it counted as a click on it, and clicking away didn't leave the box. The volume box, the key rows, and the space between the restart, play and seek controls were all too big or wrong at first.
 - **A commit that was nearly empty:** when I said to push, Claude ran one `git add` that included a folder I had just deleted (`public/demo`). Git refused the whole command, so the first commit (8f9f87a, titled as if it held the redesign) only recorded the deleted sample file, and the docs commit and the push still went through. Claude saw it in the output, said so, and pushed the real code as a new commit (b5cf830) rather than rewriting history that was already on GitHub. For a short while the repo had the docs but not the code.
 - **Slips Claude caught itself:** it removed mkdirSync from an import in make-edge-midis.mjs and broke the script, which running it showed. It also wrote a broken font line in enderer.ts because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
+- **The metronome was tied to playback:** I said it should "just run the moment it is turned on, separate from me playing or not", and that Free play should have it. Claude had built it to follow the song's clock and hidden it in Free play. It reworked it, and then I asked for both modes (section 26).
+- **A helper that wrecked `style.css`:** a PowerShell helper Claude wrote broke when it was given a single replacement, and it replaced every `#` and `.` in the stylesheet with the letter "d". The build still passed, because broken CSS is not a build error. Claude caught it from an error message, kept a copy of the broken file outside the project, restored the file from the last commit and re-applied its own changes. It was never committed. Earlier, the same kind of PowerShell quoting silently blanked some `${...}` text and turned backticks in comments into stray characters. Claude scanned all the source files for both afterward.
+- **Several rounds on the clipped digit:** the last digit in the volume and BPM boxes was cut off, and Claude tried a few causes in turn (fixed widths, then padding, then the dock squeezing its items, then tabular numbers). It never saw the clipping, so each was a reading of the layout, and the last fix is unconfirmed.
 
 **My own mistakes**
 - Nothing yet.
@@ -667,4 +696,4 @@ I started Friday's plan early.
 - Removed the built-in sample song and its file (public/demo/two-hands.mid). Shared songs now go in samplesongs/.
 - Replaced the idea of a songs/ library with a history of the files I open (kept in the browser).
 - Considered a folder picker so a visitor could use their own song folder. Not built (Chrome and Edge only, and extra scope).
-- Considered making the whole UI accent follow the theme color. Only the glow, the welcome buttons, the play button and the sliders do, for now.
+- Considered making the whole UI accent follow the theme color. At first only the glow, the welcome buttons, the play button and the sliders did. Then I asked for the tabs, pills and the rest too, so the accent now follows the theme everywhere (section 26).

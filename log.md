@@ -577,6 +577,44 @@ I started Friday's plan early.
 **Decisions**
 - Turning a track on or off during Autoplay queues the sound again from the current spot, like a seek, so a note being held is cut off.
 
+## 25. The look, the Settings panel, and separate songs (2026-10-13)
+
+**What I asked for**
+- Now that the main features were in, a high-quality, modern look: Plus Jakarta Sans (500 for the title, other weights as fits), clean modern buttons and navigation, icons where they help (an icon play button), animations when things open and close, and lights and glows. Claude could reorder text.
+- Then I tuned it as I looked at it, a few things at a time. The long list is below.
+
+**The look**
+- `style.css` was rewritten with design tokens, and the typeface is self-hosted in `public/fonts/` (Plus Jakarta Sans, SIL OFL 1.1). Claude read the license from the font's repository first. The credit is in Settings and the README, and `vercel.json` caches the fonts for a year like the piano samples. The title is weight 600 (I later asked for +100).
+- The page HTML and the icons moved into `src/template.ts`. The icons are inline SVG that Claude drew, so there is no icon library.
+- The header is frosted glass with a sliding tab control, a centered NOW PLAYING pill with the whole song name, and the notes count, MIDI keyboard and fps each in their own chip on the first row. The control bar is frosted glass, with a round play/pause button (a spinner while the piano loads), and it glides into place when it snaps.
+- Popups fade and rise in and fade out, with a blurred backdrop, using `@starting-style` (recent Chrome, Edge, Safari, Firefox 129+). Nothing animates if the system asks for less motion.
+- The canvas became see-through, so a CSS background shows behind it. Notes have rounded corners. A note that is playing has a halo, and a lit key throws a beam and a short flash of light. There is a 4 px black rail across the top of the piano that the black keys reach up to and the notes land on, with a theme-colored glow along it. Free play's notes rise up from the keys. Key names can show on the keys, the notes, both, or neither.
+
+**The Settings panel** (all of it is remembered in the browser)
+- Note colors from a fixed list of twelve, in rainbow order, left hand | right hand, with a swap button and a switch to dim the left hand when both hands share a color. No custom colors. Orange and blue are the defaults. The dark shade for black-key notes comes from the main color.
+- A theme color, which is the glow behind the notes, the welcome mode buttons, the play button and the sliders. Separate switches for the background glow, the glow along the bar, and the light from a lit key.
+- Learn timing: Precise (0.025 s), 0.05, 0.1 (the default), 0.15, 0.2, or a custom value. Plus "Play chords note by note", so a mouse can finish a chord by pressing its notes one at a time.
+- Key names, a switch for the computer keyboard (the letter and number keys; Space and the arrows still work), the "Waiting for" display switch, and the keyboard layout, with the octave now on the up and down arrows.
+- The scrollbar sits inside the card's padding so it doesn't poke out.
+
+**The other changes**
+- The "Waiting for" chip is draggable with two fixed dotted snap spots (under the header, above the piano), and it moves out of the way of the control bar.
+- Autoplay and Learn now each keep their own song, tracks, hand and place. A mode with no song can start with the other mode's song (a switch). The sample song is gone.
+- The song popup has "Your songs", a history of files I opened from my own device that is kept in the browser (IndexedDB, newest first, 30 at most), and a "Sample songs" list from `samplesongs/`, a folder that is committed. `songs/` stays gitignored and the page no longer reads it.
+- Volume shows its percentage in a box I can type into (capped at 100), and the speaker icon mutes.
+- The drawing now only loops over notes near the screen, so a song with thousands of notes costs about the same per frame as a short one.
+
+**What I checked**
+- `npm run build` passes, and the tests pass: `test-learn` (now with the early window, one-note-at-a-time chords and the parser), `test-colors`, `test-history`, `test-keys` (key names), `test-clock` and `test-sustain`.
+- Claude could not open a browser, because the path to one was blocked, so every check of how it looks and feels was me. I tried most of these as they were built and asked for changes, and said the key rows, the dim switch, the key names and the sustain behaviour looked good.
+- Not confirmed by me yet: the last round (the rainbow order, the wider Settings window, the theme-colored play button and sliders, "Play chords note by note"). The song history itself needs a browser, so nothing tested it automatically. Claude's speed estimate for the notes loop is from reading the code, not from measuring.
+
+**Decisions**
+- I dropped the old `songs/` library in favor of the history, and shared songs go in `samplesongs/`.
+- A folder picker for a visitor's own song folder was considered. It works only in Chrome and Edge, and I did not build it.
+- Widening Settings, not a third row, to make room around the swap button.
+- The theme applies to the glow, the welcome buttons, the play button and the sliders. The tabs, pills and Settings accents stay orange.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -598,6 +636,10 @@ I started Friday's plan early.
 - **Speed as a slider:** Claude built the playback speed as a slider with a value button. I wanted a button that cycles through the speeds, and a right click to go back. Claude changed it in section 22. Its first clock test also had an arithmetic mistake (it expected 12 where half speed gives 11), which Claude caught before running it, and Node's built-in TypeScript support couldn't read the shorthand constructor, so it was written out.
 - **Wrong date:** Claude dated section 22 as 2026-10-14 without checking the computer's clock. It was still 2026-10-13, and Claude fixed it.
 - **The control bar's details:** Claude's first snap distance (40 px) and edge gap (8 px) were too big, the left and right column was too fat, and in a corner Claude showed the full orange edge line together with the corner square, which I noticed. I asked for each change and Claude made them in section 23.
+- **The Waiting chip's outlines moved:** Claude's first version drew the dotted snap outlines at wherever the chip was picked up, so after each drag the two outlines were somewhere new. I wanted two fixed spots. Claude changed it in section 25.
+- **The welcome line and the buttons:** the thin line of light on the welcome card turned off with the background glow, which I did not want, and the three mode buttons did not follow the theme color, because Claude had only tied the glow to it. Both fixed.
+- **Small details I had to point out:** the swap button's hover color was see-through, so the divider line showed behind it. The "Seconds early" box was inside a label as wide as the row, so a click beside it counted as a click on it, and clicking away didn't leave the box. The volume box, the key rows, and the space between the restart, play and seek controls were all too big or wrong at first.
+- **Slips Claude caught itself:** it removed mkdirSync from an import in make-edge-midis.mjs and broke the script, which running it showed. It also wrote a broken font line in enderer.ts because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
 
 **My own mistakes**
 - Nothing yet.
@@ -621,3 +663,7 @@ I started Friday's plan early.
 - Considered a way back to the welcome card without reloading the page. Skipped it.
 - Considered a "Swap hands" button for a song where the pitch guess is wrong. Skipped it, because it was only worth building if the guess is ever wrong for a song, and it hasn't been for mine or the test songs.
 - Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.
+- Removed the built-in sample song and its file (public/demo/two-hands.mid). Shared songs now go in samplesongs/.
+- Replaced the idea of a songs/ library with a history of the files I open (kept in the browser).
+- Considered a folder picker so a visitor could use their own song folder. Not built (Chrome and Edge only, and extra scope).
+- Considered making the whole UI accent follow the theme color. Only the glow, the welcome buttons, the play button and the sliders do, for now.

@@ -6,6 +6,18 @@ import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
+import {
+  canRead,
+  chooseFolder,
+  folderSupported,
+  forgetFolder,
+  listSongs,
+  readSong,
+  recallFolder,
+  rememberFolder,
+  type FolderHandle,
+  type FolderSong,
+} from './folder.ts'
 import { clearHistory, forgetSong, listHistory, rememberSong, type HistoryEntry } from './history.ts'
 import { buildBeats, clampBpm, formatBpm, metronomeTempo, tempoAt, type Beat, type Tempo } from './tempo.ts'
 import { Metronome, type MetronomeMode } from './metronome.ts'
@@ -1107,8 +1119,12 @@ function start(app: HTMLDivElement): void {
   const welcomeList = app.querySelector<HTMLDivElement>('#welcome-song-list')!
   const welcomeError = app.querySelector<HTMLParagraphElement>('#welcome-error')!
   const welcomeTabs = app.querySelectorAll<HTMLButtonElement>('#welcome-songs [data-songs]')
-  let welcomeTab: 'history' | 'samples' = 'history'
+  type WelcomeTab = 'history' | 'samples' | 'folder'
+  let welcomeTab: WelcomeTab = 'history'
   let historyEntries: HistoryEntry[] = []
+  let folderHandle: FolderHandle | null = null // the folder of my own songs, if I chose one (see below)
+  let folderSongs: FolderSong[] = []
+  let folderNeedsPermission = false // a folder is remembered, but the browser wants my OK again before it can be read
 
   function offerSong(data: ArrayBuffer, name: string, keep: boolean): void {
     const song = parseSong(data, name)
@@ -1124,20 +1140,52 @@ function start(app: HTMLDivElement): void {
   }
 
   function renderWelcomeSongs(): void {
-    const hasHistory = historyEntries.length > 0
-    const hasSamples = samples.length > 0
-    welcomeSongs.hidden = !hasHistory && !hasSamples
-    if (welcomeTab === 'history' && !hasHistory) welcomeTab = 'samples'
-    if (welcomeTab === 'samples' && !hasSamples) welcomeTab = 'history'
+    const available: Record<WelcomeTab, boolean> = {
+      history: historyEntries.length > 0,
+      samples: samples.length > 0,
+      folder: folderSupported(), // always offered, so a folder can be chosen from here
+    }
+    welcomeSongs.hidden = !available.history && !available.samples && !available.folder
+    if (!available[welcomeTab]) welcomeTab = (['history', 'samples', 'folder'] as const).find((w) => available[w]) ?? 'history'
     for (const tab of welcomeTabs) {
-      const which = tab.dataset.songs
-      tab.hidden = (which === 'history' && !hasHistory) || (which === 'samples' && !hasSamples)
+      const which = tab.dataset.songs as WelcomeTab
+      tab.hidden = !available[which]
       tab.setAttribute('aria-checked', String(which === welcomeTab))
     }
     welcomeList.replaceChildren()
+    if (welcomeTab === 'folder' && folderNeedsPermission) {
+      const allow = document.createElement('button')
+      allow.className = 'library-item'
+      allow.textContent = `Allow access to ${folderHandle?.name ?? 'your folder'}`
+      allow.addEventListener('click', () => void loadFolder(true))
+      welcomeList.append(allow)
+      return
+    }
+    if (welcomeTab === 'folder' && (folderHandle === null || folderSongs.length === 0)) {
+      const choose = document.createElement('button')
+      choose.className = 'library-item'
+      const label = document.createElement('strong')
+      label.textContent = folderHandle === null ? 'Choose a folder of .mid files…' : 'No .mid files here. Choose another folder…'
+      choose.append(label)
+      choose.addEventListener('click', () => void chooseAndLoadFolder())
+      welcomeList.append(choose)
+      return
+    }
     const items =
       welcomeTab === 'history'
         ? historyEntries.map((entry) => ({ name: entry.name, open: () => offerSong(entry.data, entry.name, true) }))
+        : welcomeTab === 'folder'
+          ? folderSongs.map((song) => ({
+              name: song.name,
+              open: async () => {
+                try {
+                  offerSong(await readSong(song), song.name, false)
+                } catch (error) {
+                  console.error(`Couldn't read ${song.name}:`, error)
+                  welcomeError.textContent = `Couldn't read ${prettyName(song.name)}. Is it still in the folder?`
+                }
+              },
+            }))
         : samples.map((sample) => ({
             name: sample.file,
             open: async () => {
@@ -1161,10 +1209,17 @@ function start(app: HTMLDivElement): void {
       button.addEventListener('click', () => void item.open())
       welcomeList.append(button)
     }
+    if (welcomeTab === 'folder') {
+      const change = document.createElement('button')
+      change.className = 'link folder-change'
+      change.textContent = `Folder: ${folderHandle?.name ?? ''} · Change`
+      change.addEventListener('click', () => void chooseAndLoadFolder())
+      welcomeList.append(change)
+    }
   }
   welcomeTabs.forEach((tab) =>
     tab.addEventListener('click', () => {
-      welcomeTab = tab.dataset.songs as 'history' | 'samples'
+      welcomeTab = tab.dataset.songs as WelcomeTab
       renderWelcomeSongs()
     }),
   )
@@ -1173,6 +1228,100 @@ function start(app: HTMLDivElement): void {
     await renderHistory()
   })
   void renderHistory()
+
+  // Your folder (Chrome and Edge only): a folder of .mid files on this computer, listed in the song popup and on the
+  // welcome screen. The browser remembers which folder, but asks for permission again on a new visit, so there is an
+  // "Allow access" button. Files are read from the disk when I click one, and nothing is uploaded (see folder.ts).
+  const folderBox = app.querySelector<HTMLDivElement>('#folder')!
+  const folderTitle = app.querySelector<HTMLElement>('#folder-title')!
+  const folderList = app.querySelector<HTMLDivElement>('#folder-list')!
+  const folderAllow = app.querySelector<HTMLButtonElement>('#folder-allow')!
+  const folderRescan = app.querySelector<HTMLButtonElement>('#folder-rescan')!
+  const folderForget = app.querySelector<HTMLButtonElement>('#folder-forget')!
+  const folderChoose = app.querySelector<HTMLButtonElement>('#folder-choose')!
+  const folderNote = app.querySelector<HTMLParagraphElement>('#folder-note')!
+
+  async function openFolderSong(song: FolderSong): Promise<void> {
+    try {
+      const error = loadSong(await readSong(song), song.name)
+      if (error) songError.textContent = error
+      else songDialog.close()
+    } catch (error) {
+      console.error(`Couldn't read ${song.name}:`, error)
+      songError.textContent = `Couldn't read ${prettyName(song.name)}. Is it still in the folder?`
+    }
+  }
+
+  function renderFolder(): void {
+    folderBox.hidden = !folderSupported() // other browsers don't have it, so there is nothing to show
+    folderList.replaceChildren()
+    folderTitle.textContent = folderHandle ? `Folder: ${folderHandle.name}` : 'Your folder'
+    folderChoose.textContent = folderHandle ? 'Change' : 'Choose a folder'
+    folderRescan.hidden = folderHandle === null || folderNeedsPermission
+    folderForget.hidden = folderHandle === null
+    folderAllow.hidden = !folderNeedsPermission
+    folderNote.textContent =
+      folderHandle === null
+        ? 'Pick a folder of .mid files on this computer. Nothing is uploaded.'
+        : folderNeedsPermission
+          ? 'The browser needs your OK to read this folder again.'
+          : folderSongs.length === 0
+            ? 'No .mid files in this folder.'
+            : ''
+    for (const song of folderSongs) {
+      const button = document.createElement('button')
+      button.className = 'library-item'
+      const title = document.createElement('strong')
+      title.textContent = prettyName(song.name)
+      button.append(title)
+      button.title = song.name
+      button.addEventListener('click', () => void openFolderSong(song))
+      folderList.append(button)
+    }
+    renderWelcomeSongs()
+  }
+
+  // Lists the folder's songs. With `ask` it may show the browser's permission prompt (it needs a click to do that).
+  async function loadFolder(ask: boolean): Promise<void> {
+    folderSongs = []
+    folderNeedsPermission = false
+    if (folderHandle) {
+      if (await canRead(folderHandle, ask)) {
+        try {
+          folderSongs = await listSongs(folderHandle)
+        } catch (error) {
+          console.error("Couldn't read the folder:", error)
+          folderNeedsPermission = true // it may have moved or been renamed, or the permission was lost
+        }
+      } else {
+        folderNeedsPermission = true
+      }
+    }
+    renderFolder()
+  }
+
+  async function chooseAndLoadFolder(): Promise<void> {
+    const handle = await chooseFolder()
+    if (!handle) return // closed the dialog
+    folderHandle = handle
+    await rememberFolder(handle)
+    await loadFolder(false) // choosing it already gave the permission
+  }
+  folderChoose.addEventListener('click', () => void chooseAndLoadFolder())
+  folderAllow.addEventListener('click', () => void loadFolder(true))
+  folderRescan.addEventListener('click', () => void loadFolder(false))
+  folderForget.addEventListener('click', async () => {
+    await forgetFolder()
+    folderHandle = null
+    await loadFolder(false)
+  })
+  renderFolder()
+  if (folderSupported()) {
+    void recallFolder().then(async (handle) => {
+      folderHandle = handle
+      await loadFolder(false)
+    })
+  }
 
   // The welcome screen: just the three mode names. The click on a button is also what turns the audio on.
   app.querySelectorAll<HTMLButtonElement>('#welcome [data-start]').forEach((button) =>

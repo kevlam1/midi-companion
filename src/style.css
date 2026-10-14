@@ -2550,3 +2550,32 @@ html[data-bg-light] #pedal {
 #learn.dragging {
   transition: none;
 }
+
+/* Your folder (song popup): the title row's buttons sit together, and "Allow access" gets some room. */
+.library-actions {
+  display: flex;
+  gap: 0.9rem;
+}
+
+.folder-allow {
+  margin-bottom: 0.5rem;
+}
+
+.folder-allow[hidden] {
+  display: none;
+}
+
+#folder .muted {
+  margin: 0.5rem 0 0;
+}
+
+#folder .muted:empty {
+  display: none;
+}
+
+/* The welcome list's "Folder: name · Change" link sits under the songs. */
+.folder-change {
+  align-self: center;
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+}

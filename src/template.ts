@@ -131,6 +131,7 @@ export const appHtml = `
           <div class="segmented compact" role="radiogroup" aria-label="Songs to play">
             <button data-songs="history" role="radio" aria-checked="true">Your songs</button>
             <button data-songs="samples" role="radio" aria-checked="false">Sample songs</button>
+            <button data-songs="folder" role="radio" aria-checked="false" hidden>Your folder</button>
           </div>
           <div id="welcome-song-list" class="library-list"></div>
           <p id="welcome-error" class="welcome-error"></p>
@@ -163,13 +164,27 @@ export const appHtml = `
         <h3>Your songs</h3>
         <button id="clear-history" class="link">Clear</button>
       </div>
-      <div id="history-list" class="library-list"></div>    </div>
+      <div id="history-list" class="library-list"></div>
+    </div>
     <div id="samples" class="library" hidden>
       <button id="samples-toggle" class="samples-toggle" aria-expanded="false" aria-controls="samples-list">
         <span>Sample songs <small id="samples-count"></small></span>
         <svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div id="samples-list" class="library-list" hidden></div>
+    </div>
+    <div id="folder" class="library" hidden>
+      <div class="library-head">
+        <h3 id="folder-title">Your folder</h3>
+        <span class="library-actions">
+          <button id="folder-rescan" class="link" hidden>Rescan</button>
+          <button id="folder-forget" class="link" hidden>Remove</button>
+          <button id="folder-choose" class="link">Choose a folder</button>
+        </span>
+      </div>
+      <button id="folder-allow" class="btn folder-allow" hidden>Allow access</button>
+      <div id="folder-list" class="library-list"></div>
+      <p id="folder-note" class="muted small"></p>
     </div>
     <input type="file" id="file" accept=".mid,.midi" hidden />
   </dialog>

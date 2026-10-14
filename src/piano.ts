@@ -9,6 +9,7 @@ import { Sustain } from './sustain.ts'
 const BASE_URL = '/samples/salamander/'
 const LOOKAHEAD = 0.25 // seconds of notes to queue ahead of the clock
 const FADE = 0.03 // seconds to fade out old notes on pause or seek
+export const DEFAULT_VOLUME = 0.7 // where the volume slider starts (0 to 1)
 
 function sampleUrls(): Record<string, string> {
   const urls: Record<string, string> = { A0: 'A0.mp3' }
@@ -33,7 +34,8 @@ export class Piano {
   private buffers: ToneAudioBuffers // the recordings, downloaded once and shared by every session
   private session: Session | null = null
   private live: Sampler | null = null // for notes played by hand; never thrown away
-  private master = new Gain(1).toDestination() // everything plays through this, so one slider sets the volume
+  // Everything plays through this, so one slider sets the volume. It starts at the slider's starting point (squared, see setVolume).
+  private master = new Gain(DEFAULT_VOLUME * DEFAULT_VOLUME).toDestination()
   private sustain = new Sustain() // the sustain pedal, for notes played by hand
   private next = 0 // index of the next note to queue
   loaded = false
@@ -71,6 +73,7 @@ export class Piano {
 
   // The slider's 0 to 1, squared, because loudness is heard on a curve: the middle of the slider is
   // a quarter of the full signal (about 12 dB quieter) and not half. Full volume (1) is the original sound.
+  // At the default of 0.7 the gain is 0.49, about 6 dB quieter than full.
   setVolume(level: number): void {
     this.master.gain.rampTo(level * level, 0.03) // a short ramp, so dragging the slider doesn't crackle
   }

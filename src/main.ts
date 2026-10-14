@@ -7,7 +7,7 @@ import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { LearnSession, groupChords } from './learn.ts'
 import { startMidiInput } from './midi-input.ts'
-import { Piano } from './piano.ts'
+import { DEFAULT_VOLUME, Piano } from './piano.ts'
 import { draw, type FallingNote } from './renderer.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -146,6 +146,7 @@ function start(app: HTMLDivElement): void {
   const pedalLabel = app.querySelector<HTMLSpanElement>('#pedal')!
   const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
   const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
+  volumeSlider.value = String(DEFAULT_VOLUME)
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 

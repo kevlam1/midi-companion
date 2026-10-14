@@ -522,11 +522,13 @@ I started Friday's plan early.
 - The pedal only holds notes I play by hand. The pedal marks inside a song file are still ignored, as I decided before.
 - Learn's `EARLY` window stays in song seconds, so at 0.5x it is 0.2 s of real time and still the same distance on screen.
 - Space no longer presses a focused button, because it is the pedal now. Enter still works.
+- After trying the volume slider and the speed button (both work), I asked for the volume to start at 70% and not 100%. That is about 6 dB quieter than the page used to be. The starting value is `DEFAULT_VOLUME` in `piano.ts`.
 
 **What I checked**
 - `npm run build` passes. `node scripts/test-clock.mjs` (speed math, including changing speed mid-play and during the head start) and `node scripts/test-sustain.mjs` (pedal edge cases) pass, and the older Learn and key tests still pass.
 - I tried the sustain pedal afterwards and it works with the space bar on the piano. It also works with the sustain button on my DONNER N25, so that keyboard sends the pedal message (controller 64) the page listens for.
-- Not checked: how the volume slider and the speed button sound and look in the browser. I told Claude to push before reporting back on them. The toolbar is also getting crowded, which is for Saturday's control bar.
+- I tried the volume slider and the speed button afterwards and both work.
+- The toolbar is getting crowded, which is for Saturday's control bar.
 
 ---
 

@@ -525,8 +525,8 @@ I started Friday's plan early.
 
 **What I checked**
 - `npm run build` passes. `node scripts/test-clock.mjs` (speed math, including changing speed mid-play and during the head start) and `node scripts/test-sustain.mjs` (pedal edge cases) pass, and the older Learn and key tests still pass.
-- I tried the sustain pedal afterwards and it works with the space bar on the piano.
-- Not checked: how the volume slider and the speed button sound and look in the browser. I told Claude to push before reporting back on them. Not checked: whether my DONNER N25 sends pedal messages at all, since I don't know if it has a pedal jack. The toolbar is also getting crowded, which is for Saturday's control bar.
+- I tried the sustain pedal afterwards and it works with the space bar on the piano. It also works with the sustain button on my DONNER N25, so that keyboard sends the pedal message (controller 64) the page listens for.
+- Not checked: how the volume slider and the speed button sound and look in the browser. I told Claude to push before reporting back on them. The toolbar is also getting crowded, which is for Saturday's control bar.
 
 ---
 

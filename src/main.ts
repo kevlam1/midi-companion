@@ -44,13 +44,16 @@ if (app) {
         <button id="play" disabled>Play</button>
         <button id="restart" disabled>Restart</button>
         <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
-        <span id="time">0.00 / 0.00 s</span>
+        <span id="time"><span id="time-now">0.00</span><span class="time-sep"> / </span><span id="time-total">0.00 s</span></span>
         <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
         <div id="volume-group" class="slider">
           <span>Volume</span>
           <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
         </div>
       </div>
+      <div id="snap-hint" hidden></div>
+      <div id="center-hint" hidden></div>
+      <div id="corner-hint" hidden><svg width="100%" height="100%"><polygon /></svg></div>
       <div id="welcome">
         <div class="welcome-card">
           <h2 class="welcome-title">MIDI Companion <span>·</span> Piano Visualizer</h2>
@@ -130,7 +133,8 @@ function start(app: HTMLDivElement): void {
   const playButton = app.querySelector<HTMLButtonElement>('#play')!
   const restartButton = app.querySelector<HTMLButtonElement>('#restart')!
   const seekSlider = app.querySelector<HTMLInputElement>('#seek')!
-  const timeLabel = app.querySelector<HTMLSpanElement>('#time')!
+  const timeNow = app.querySelector<HTMLSpanElement>('#time-now')!
+  const timeTotal = app.querySelector<HTMLSpanElement>('#time-total')!
   const fpsLabel = app.querySelector<HTMLSpanElement>('#fps')!
   const statusLabel = app.querySelector<HTMLSpanElement>('#status')!
   const midiLabel = app.querySelector<HTMLSpanElement>('#midi')!
@@ -193,21 +197,34 @@ function start(app: HTMLDivElement): void {
   app.dataset.mode = mode
 
   // The floating control bar. I drag it by the grip. It stays inside the falling-notes area: below the header
-  // and above the piano keys. Where it sits is kept as fractions of the free space (0 to 1 across and down), so
-  // it keeps its place when the window is resized, and it is remembered in this browser between visits.
+  // and above the piano keys. Let go within SNAP_DISTANCE of an edge and it snaps there (top, bottom, left or
+  // right), staying where I let go along that edge. Within CENTER_DISTANCE of the middle of the edge it snaps to the
+  // middle, and within CORNER_DISTANCE of a corner it snaps into the corner.
+  // On the left and right it turns into a column. Let go anywhere else and it stays where it is. Its place is
+  // kept as fractions of the free space (0 to 1 across and down), so it keeps its place when the window is
+  // resized, and it is remembered in this browser between visits.
+  type Dock = 'top' | 'bottom' | 'left' | 'right'
   const BAR_KEY = 'midi-companion.controls'
-  const BAR_MARGIN = 8 // px of space kept around the bar
-  let barPos = loadBarPosition()
+  const BAR_MARGIN = 3 // px of space kept around the bar
+  const SNAP_DISTANCE = 10 // px from an edge within which letting go snaps to it
+  const CENTER_DISTANCE = 15 // px either side of the middle of an edge within which letting go snaps to the middle
+  const CORNER_DISTANCE = 20 // px from both sides of a corner within which letting go snaps into the corner
+  let bar = loadBar() // dock is the edge it is snapped to, or null when it is free at x, y
   let barDrag: { pointerId: number; dx: number; dy: number } | null = null
+  const snapHint = app.querySelector<HTMLDivElement>('#snap-hint')!
+  const centerHint = app.querySelector<HTMLDivElement>('#center-hint')!
+  const cornerHint = app.querySelector<HTMLDivElement>('#corner-hint')!
+  const cornerShape = cornerHint.querySelector<SVGPolygonElement>('polygon')!
 
-  function loadBarPosition(): { x: number; y: number } {
-    const fallback = { x: 0.5, y: 0 } // top, in the middle
+  function loadBar(): { dock: Dock | null; x: number; y: number } {
+    const fallback = { dock: 'top' as Dock | null, x: 0.5, y: 0 } // top, in the middle
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(BAR_KEY) ?? 'null')
-      if (saved && typeof saved === 'object' && 'x' in saved && 'y' in saved) {
-        const { x, y } = saved as { x: unknown; y: unknown }
+      if (saved && typeof saved === 'object') {
+        const { dock, x, y } = saved as { dock?: unknown; x?: unknown; y?: unknown }
         if (typeof x === 'number' && typeof y === 'number') {
-          return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }
+          const edge = dock === 'top' || dock === 'bottom' || dock === 'left' || dock === 'right' ? dock : null
+          return { dock: edge, x: fraction(x, 1), y: fraction(y, 1) }
         }
       }
     } catch {
@@ -216,36 +233,193 @@ function start(app: HTMLDivElement): void {
     return fallback
   }
 
-  function saveBarPosition(): void {
+  function saveBar(): void {
     try {
-      localStorage.setItem(BAR_KEY, JSON.stringify(barPos))
+      localStorage.setItem(BAR_KEY, JSON.stringify(bar))
     } catch {
       // the browser won't let the page save: the bar just starts at the top next time
     }
   }
 
-  // The room the bar can move in, in pixels inside the stage area.
-  function barRoom(): { left: number; top: number; width: number; height: number } {
-    const left = BAR_MARGIN
-    const top = header.offsetHeight + BAR_MARGIN
-    const right = stageArea.clientWidth - BAR_MARGIN
-    const bottom = stageArea.clientHeight - keyboardLayout(canvas.clientHeight).height - BAR_MARGIN
+  // value out of span, kept between 0 and 1 (0 when there is no span, e.g. the bar fills the whole room)
+  function fraction(value: number, span: number): number {
+    return span > 0 ? Math.min(1, Math.max(0, value / span)) : 0
+  }
+
+  // The area the bar can be in, in pixels inside the stage area: below the header, above the piano keys.
+  function barBounds(): { left: number; top: number; right: number; bottom: number } {
     return {
-      left,
-      top,
-      width: Math.max(0, right - left - controls.offsetWidth),
-      height: Math.max(0, bottom - top - controls.offsetHeight),
+      left: BAR_MARGIN,
+      top: header.offsetHeight + BAR_MARGIN,
+      right: stageArea.clientWidth - BAR_MARGIN,
+      bottom: stageArea.clientHeight - keyboardLayout(canvas.clientHeight).height - BAR_MARGIN,
+    }
+  }
+
+  // How far the bar's top-left corner can travel, from `left` and `top`.
+  function barRoom(): { left: number; top: number; width: number; height: number } {
+    const b = barBounds()
+    return {
+      left: b.left,
+      top: b.top,
+      width: Math.max(0, b.right - b.left - controls.offsetWidth),
+      height: Math.max(0, b.bottom - b.top - controls.offsetHeight),
+    }
+  }
+
+  // A column on the left and right edges, a row everywhere else.
+  function applyOrientation(): void {
+    controls.dataset.vertical = String(bar.dock === 'left' || bar.dock === 'right')
+  }
+
+  // Where the bar is, as fractions. A snapped bar is pressed against its edge and keeps its place along it.
+  function barAt(): { x: number; y: number } {
+    switch (bar.dock) {
+      case 'top':
+        return { x: bar.x, y: 0 }
+      case 'bottom':
+        return { x: bar.x, y: 1 }
+      case 'left':
+        return { x: 0, y: bar.y }
+      case 'right':
+        return { x: 1, y: bar.y }
+      default:
+        return bar
     }
   }
 
   function placeBar(): void {
+    const b = barBounds()
+    controls.style.maxHeight = `${Math.max(0, b.bottom - b.top)}px` // a column shrinks its seek slider to fit
     const room = barRoom()
-    controls.style.left = `${room.left + barPos.x * room.width}px`
-    controls.style.top = `${room.top + barPos.y * room.height}px`
+    const at = barAt()
+    controls.style.left = `${room.left + at.x * room.width}px`
+    controls.style.top = `${room.top + at.y * room.height}px`
+  }
+
+  // Close to the middle of an edge, the bar goes exactly to the middle. Otherwise it stays where it is.
+  // `span` is the travel along the edge in px.
+  function snapToMiddle(along: number, span: number): number {
+    return Math.abs(along - 0.5) * span <= CENTER_DISTANCE ? 0.5 : along
+  }
+
+  // 0 if the bar is within CORNER_DISTANCE of the start of an axis, 1 if of the end, null if of neither.
+  function nearEnd(start: number, end: number): 0 | 1 | null {
+    if (start <= end) return start <= CORNER_DISTANCE ? 0 : null
+    return end <= CORNER_DISTANCE ? 1 : null
+  }
+
+  interface SnapPlan {
+    edge: Dock
+    x: number
+    y: number
+    corner: { x: 0 | 1; y: 0 | 1 } | null // set when the bar is going into a corner
+  }
+
+  // What letting go now would do, or null if the bar is not near an edge (then it just stays where it is).
+  // Near a corner it goes into the corner. Near an edge it snaps to it, to the middle of it if that is close, and
+  // otherwise keeps its place along the edge. A row prefers the top and bottom edge, a column the left and right.
+  function snapPlan(): SnapPlan | null {
+    const room = barRoom()
+    const cornerX = nearEnd(bar.x * room.width, (1 - bar.x) * room.width)
+    const cornerY = nearEnd(bar.y * room.height, (1 - bar.y) * room.height)
+    if (cornerX !== null && cornerY !== null) {
+      const column = controls.dataset.vertical === 'true'
+      const edge: Dock = column ? (cornerX === 0 ? 'left' : 'right') : cornerY === 0 ? 'top' : 'bottom'
+      return { edge, x: cornerX, y: cornerY, corner: { x: cornerX, y: cornerY } }
+    }
+    const edge = nearestDock()
+    if (edge === null) return null
+    return edge === 'top' || edge === 'bottom'
+      ? { edge, x: snapToMiddle(bar.x, room.width), y: bar.y, corner: null }
+      : { edge, x: bar.x, y: snapToMiddle(bar.y, room.height), corner: null }
+  }
+
+  // The edge the bar would snap to if I let go now, or null. A row prefers the top and bottom, a column the sides.
+  function nearestDock(): Dock | null {
+    const room = barRoom()
+    const away: Record<Dock, number> = {
+      top: bar.y * room.height,
+      bottom: (1 - bar.y) * room.height,
+      left: bar.x * room.width,
+      right: (1 - bar.x) * room.width,
+    }
+    const order: Dock[] =
+      controls.dataset.vertical === 'true' ? ['left', 'right', 'top', 'bottom'] : ['top', 'bottom', 'left', 'right']
+    let best: Dock | null = null
+    for (const edge of order) {
+      if (away[edge] <= SNAP_DISTANCE && (best === null || away[edge] < away[best])) best = edge
+    }
+    return best
+  }
+
+  // A thin orange strip along the edge the bar would snap to while I drag it.
+  function showSnapHint(edge: Dock | null): void {
+    snapHint.hidden = edge === null
+    if (edge === null) return
+    const b = barBounds()
+    const strip = BAR_MARGIN // fills the gap between the bar's edge and the screen, header or keys
+    const box = {
+      top: { left: b.left, top: b.top - strip, width: b.right - b.left, height: strip },
+      bottom: { left: b.left, top: b.bottom, width: b.right - b.left, height: strip },
+      left: { left: b.left - strip, top: b.top, width: strip, height: b.bottom - b.top },
+      right: { left: b.right, top: b.top, width: strip, height: b.bottom - b.top },
+    }[edge]
+    snapHint.style.left = `${box.left}px`
+    snapHint.style.top = `${box.top}px`
+    snapHint.style.width = `${box.width}px`
+    snapHint.style.height = `${box.height}px`
+  }
+
+  // A dotted line across the middle of the screen while the bar is lined up with the middle of its edge:
+  // a vertical line for the top and bottom edges, a horizontal one for the left and right edges.
+  function showCenterHint(plan: SnapPlan | null): void {
+    if (plan === null) {
+      centerHint.hidden = true
+      return
+    }
+    const acrossTop = plan.edge === 'top' || plan.edge === 'bottom'
+    const centered = plan.corner === null && (acrossTop ? plan.x === 0.5 : plan.y === 0.5)
+    centerHint.hidden = !centered
+    if (!centered) return
+    const b = barBounds()
+    centerHint.dataset.line = acrossTop ? 'vertical' : 'horizontal'
+    centerHint.style.left = `${acrossTop ? (b.left + b.right) / 2 - 1 : b.left}px`
+    centerHint.style.top = `${acrossTop ? b.top : (b.top + b.bottom) / 2 - 1}px`
+    centerHint.style.width = acrossTop ? '0px' : `${b.right - b.left}px`
+    centerHint.style.height = acrossTop ? `${b.bottom - b.top}px` : '0px'
+  }
+
+  // The corner the bar is about to go into lights up as a dotted triangle. Its right angle is in the screen's
+  // corner and its two short sides run along the edges.
+  function showCornerHint(plan: SnapPlan | null): void {
+    const corner = plan?.corner ?? null
+    cornerHint.hidden = corner === null
+    if (corner === null) return
+    const b = barBounds()
+    const size = CORNER_DISTANCE + BAR_MARGIN
+    cornerHint.style.width = `${size}px`
+    cornerHint.style.height = `${size}px`
+    cornerHint.style.left = `${corner.x === 0 ? b.left - BAR_MARGIN : b.right + BAR_MARGIN - size}px`
+    cornerHint.style.top = `${corner.y === 0 ? b.top - BAR_MARGIN : b.bottom + BAR_MARGIN - size}px`
+    const far = size - 1 // 1 px in from the box, so the dotted line isn't clipped
+    const cx = corner.x === 0 ? 1 : far // the right angle
+    const cy = corner.y === 0 ? 1 : far
+    const ox = corner.x === 0 ? far : 1 // the far ends of the two short sides
+    const oy = corner.y === 0 ? far : 1
+    cornerShape.setAttribute('points', `${cx},${cy} ${ox},${cy} ${cx},${oy}`)
   }
 
   grip.addEventListener('pointerdown', (event) => {
     const rect = controls.getBoundingClientRect()
+    const area = stageArea.getBoundingClientRect()
+    const room = barRoom()
+    // Snapped or not, from here the bar moves freely. Start from where it is right now.
+    bar = {
+      dock: null,
+      x: fraction(rect.left - area.left - room.left, room.width),
+      y: fraction(rect.top - area.top - room.top, room.height),
+    }
     barDrag = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top }
     grip.setPointerCapture(event.pointerId)
     event.preventDefault() // no text selection while dragging
@@ -254,19 +428,31 @@ function start(app: HTMLDivElement): void {
     if (!barDrag || event.pointerId !== barDrag.pointerId) return
     const area = stageArea.getBoundingClientRect()
     const room = barRoom()
-    const x = event.clientX - area.left - barDrag.dx - room.left
-    const y = event.clientY - area.top - barDrag.dy - room.top
-    barPos = {
-      x: room.width > 0 ? Math.min(1, Math.max(0, x / room.width)) : 0,
-      y: room.height > 0 ? Math.min(1, Math.max(0, y / room.height)) : 0,
+    bar = {
+      dock: null,
+      x: fraction(event.clientX - area.left - barDrag.dx - room.left, room.width),
+      y: fraction(event.clientY - area.top - barDrag.dy - room.top, room.height),
     }
     placeBar()
+    const plan = snapPlan()
+    showSnapHint(plan !== null && plan.corner === null ? plan.edge : null) // a corner shows only its own hint
+    showCenterHint(plan)
+    showCornerHint(plan)
   })
   for (const type of ['pointerup', 'pointercancel']) {
     grip.addEventListener(type, () => {
       if (!barDrag) return
       barDrag = null
-      saveBarPosition()
+      // Snap to the edge it is near, keeping its place along the edge, or going into a corner or to the middle of
+      // the edge if it is close to one. With no edge near, it stays where it was let go.
+      const plan = snapPlan()
+      bar = plan ? { dock: plan.edge, x: plan.x, y: plan.y } : { ...bar, dock: null }
+      snapHint.hidden = true
+      centerHint.hidden = true
+      cornerHint.hidden = true
+      applyOrientation()
+      placeBar()
+      saveBar()
     })
   }
 
@@ -277,6 +463,7 @@ function start(app: HTMLDivElement): void {
   }).observe(header)
   new ResizeObserver(placeBar).observe(stageArea)
   new ResizeObserver(placeBar).observe(controls)
+  applyOrientation()
   placeBar()
 
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
@@ -808,7 +995,8 @@ function start(app: HTMLDivElement): void {
       time,
       new Set([...held.values(), ...midiHeld, ...typedHeld.values()]),
     )
-    timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
+    timeNow.textContent = time.toFixed(2)
+    timeTotal.textContent = `${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
     seekSlider.style.setProperty('--progress', `${progress}%`)

@@ -530,6 +530,28 @@ I started Friday's plan early.
 - I tried the volume slider and the speed button afterwards and both work.
 - The toolbar is getting crowded, which is for Saturday's control bar.
 
+## 23. The floating control bar (2026-10-13)
+
+**What I asked for**
+- A floating control bar for the playback controls (play, restart, seek, time, speed, volume) that I can move, and that can snap to the top, left, right or bottom (above the keys). On the left and right it should be a column, with the seek slider moving up. The bar and the header should be semi-transparent, but not their text and controls. I wanted it to start at the top and remember where I leave it.
+- Then I tuned it as I tried it: snapping much closer to the edges, a smaller snap distance (cut by about 75%), snapping into corners as well as to the middle of each edge, with the corner lighting up, and the left and right column slimmer.
+
+**What changed**
+- `main.ts` and `style.css`: the tabs and toolbar are one header that floats over the canvas, so the falling notes show through its background while its text stays solid. The controls moved out of the toolbar into a bar I drag by a grip. It stays below the header and above the piano keys, and its place is kept as fractions of the free space and saved in the browser (the position only).
+- Snapping: within 10 px of an edge it snaps there and keeps its place along the edge. Within 20 px of a corner (on both sides) it goes into the corner, and the corner lights up as a dotted triangle. Within 15 px of the middle of an edge it goes to the exact middle, and a dotted line across the screen shows it. An orange strip along the edge shows which edge it will snap to. The gap around the bar is 3 px.
+- On the left and right the bar is a column: smaller buttons, a shorter volume slider, the time on two lines, and a vertical seek slider that fills upward (start at the bottom, end at the top). The column is capped to the free height, so the seek slider shrinks on a short window.
+- The bar is hidden on the welcome screen. In Free play it shows only the grip and volume.
+- The time label is now two small spans (the current time and the total) so the column can show them on two lines.
+
+**What I checked**
+- `npm run build` passes, and the four test scripts pass.
+- I tried the bar in the browser and the snapping works. The grip glyph looks off, but the font and design will change later, so that is fine.
+- Claude could not open a browser itself, because the path to one was blocked, so everything about how it looks and feels was checked by me. I have not confirmed that the vertical seek slider points the right way in other browsers, since Firefox may handle the vertical writing mode differently.
+
+**Decisions**
+- A row dropped in a corner stays a row at the top or bottom, and a column stays a column at the side. To switch, I drag it to a side or to the top or bottom.
+- Claude took 50% to mean 15 px for the middle zone. The corners had gone from 10 to 20, which is 100%, and Claude said so.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -550,6 +572,7 @@ I started Friday's plan early.
 - **Welcome and popup details:** Claude's first welcome screen had far more text than I wanted and opened the file picker for Learn too. It also only opened the song popup from the welcome button and not from the Autoplay tab, and the drop box flickered, because each piece of text inside it counted as leaving the box. I told Claude each time, and it fixed them in section 20.
 - **Speed as a slider:** Claude built the playback speed as a slider with a value button. I wanted a button that cycles through the speeds, and a right click to go back. Claude changed it in section 22. Its first clock test also had an arithmetic mistake (it expected 12 where half speed gives 11), which Claude caught before running it, and Node's built-in TypeScript support couldn't read the shorthand constructor, so it was written out.
 - **Wrong date:** Claude dated section 22 as 2026-10-14 without checking the computer's clock. It was still 2026-10-13, and Claude fixed it.
+- **The control bar's details:** Claude's first snap distance (40 px) and edge gap (8 px) were too big, the left and right column was too fat, and in a corner Claude showed the full orange edge line together with the corner square, which I noticed. I asked for each change and Claude made them in section 23.
 
 **My own mistakes**
 - Nothing yet.

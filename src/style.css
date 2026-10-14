@@ -91,6 +91,118 @@ body {
   cursor: grabbing;
 }
 
+/* Snapped to the left or right edge, the bar is a column. The seek slider stands upright and fills upward: the
+   start of the song is at the bottom and the end at the top. It shrinks if the window is short (max-height is set from main.ts). */
+#controls[data-vertical='true'] {
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem;
+}
+
+/* Slimmer parts, so the column isn't wide: smaller buttons, a shorter volume slider, and the time on two lines. */
+#controls[data-vertical='true'] button {
+  padding: 0.25rem 0.35rem;
+  font-size: 0.8rem;
+}
+
+#controls[data-vertical='true'] #speed {
+  min-width: 0;
+}
+
+#controls[data-vertical='true'] .slider {
+  font-size: 0.75rem;
+}
+
+#controls[data-vertical='true'] .slider input[type='range'] {
+  width: 56px;
+}
+
+#controls[data-vertical='true'] #time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+#controls[data-vertical='true'] .time-sep {
+  display: none;
+}
+
+#controls[data-vertical='true'] #seek {
+  --fill-dir: top;
+  writing-mode: vertical-lr;
+  direction: rtl; /* with vertical-lr, this puts the start at the bottom */
+  flex: 0 1 200px;
+  width: 1rem;
+  height: 200px;
+  min-width: 0;
+  min-height: 60px;
+}
+
+#controls[data-vertical='true'] .slider {
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+/* The strip that shows which edge the bar will snap to while it is dragged. */
+#snap-hint {
+  position: absolute;
+  z-index: 3;
+  border-radius: 2px;
+  background: #ffb870;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+#snap-hint[hidden] {
+  display: none;
+}
+
+/* The dotted line across the middle of the screen, shown while the bar is lined up with the middle of its edge. */
+#center-hint {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#center-hint[data-line='vertical'] {
+  border-left: 2px dotted #ffb870;
+}
+
+#center-hint[data-line='horizontal'] {
+  border-top: 2px dotted #ffb870;
+}
+
+#center-hint[hidden] {
+  display: none;
+}
+
+/* The corner the bar is about to snap into lights up as a dotted triangle. */
+#corner-hint {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#corner-hint svg {
+  display: block;
+}
+
+#corner-hint polygon {
+  fill: rgb(255 184 112 / 0.2);
+  stroke: #ffb870;
+  stroke-width: 2;
+  stroke-dasharray: 2 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#corner-hint[hidden] {
+  display: none;
+}
+
 #toolbar h1 {
   margin: 0 1rem 0 0;
   font-size: 1.1rem;
@@ -115,15 +227,15 @@ body {
 }
 
 #seek::-webkit-slider-runnable-track {
-  height: 4px;
+  block-size: 4px; /* the thickness, in either direction */
   border-radius: 2px;
-  background: linear-gradient(to right, #ffb870 var(--progress), #3a3a3a var(--progress));
+  background: linear-gradient(to var(--fill-dir, right), #ffb870 var(--progress), #3a3a3a var(--progress));
 }
 
 #seek::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
-  margin-top: -5px;
+  margin-block-start: -5px; /* centers the thumb on the track, in either direction */
   border: none;
   border-radius: 50%;
   background: #ffb870;
@@ -131,13 +243,13 @@ body {
 }
 
 #seek::-moz-range-track {
-  height: 4px;
+  block-size: 4px;
   border-radius: 2px;
   background: #3a3a3a;
 }
 
 #seek::-moz-range-progress {
-  height: 4px;
+  block-size: 4px;
   border-radius: 2px;
   background: #ffb870;
 }

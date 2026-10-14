@@ -12,6 +12,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Play, pause, restart, and a seek slider.
 - Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Play it with a MIDI keyboard (Chrome or Edge; the page asks permission). Keys light up and play, and harder presses are louder.
+- The playback controls are in a floating bar you can drag by its grip. It snaps to the top, bottom, left or right (a column on the sides), into the corners, and to the middle of each edge, and it remembers where you left it. The header and the bar are see-through, so the falling notes show behind them.
 - A volume slider, and a speed button (0.25x to 2x) that steps to the next speed on a click and the previous one on a right click. Notes keep their pitch when the speed changes.
 - A sustain pedal for the notes you play: the space bar, or a MIDI pedal. It does not change the song's own sound.
 - Play it with your computer keyboard: Z to M and Q to U are the white and black keys, and the left and right arrows change octave. The layout is listed in Settings.
@@ -23,7 +24,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Drum tracks and notes outside the 88 keys are skipped. The sustain pedal marks inside a song are ignored.
 
 ## Not built yet
-- A floating control bar and other polish.
+- Other polish.
 
 ## Run it locally
 You need Node.js (the project was built on Node 24).

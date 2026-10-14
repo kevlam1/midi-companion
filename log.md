@@ -669,6 +669,30 @@ I started Friday's plan early.
 
 ---
 
+## 28. Smooth scrolling, a tab-switch bug, and a crash from the inspector (2026-10-14)
+
+**What I asked for**
+- Smooth scrolling in Settings and everywhere else that scrolls. "Play chords note by note" on by default.
+- Then I found bugs while testing. In Autoplay, switching to another browser tab left the piano silent, the timer slowing, and the keys dead, even after skipping ahead. After a first fix, a quick switch away and back was very choppy, which midee does not do. And opening the browser's inspector while a song played killed the site.
+
+**What changed**
+- `smooth-scroll.ts`: mouse-wheel scrolling in Settings, the Tracks popup, the song lists and the welcome card eases toward its target. Trackpads (small steps) and people who ask for less motion keep the browser's own scrolling.
+- "Play chords note by note" starts on. Anyone who already saved their settings keeps what they saved until they change it or hold the reset button.
+- The tab-switch bug: when the tab was hidden, the old code queued every remaining note of the song at once, which is thousands of audio nodes in one go. Now, while the tab is hidden, Tone's own timer queues the next second of notes and metronome clicks every 0.1 s. Claude checked in Tone's source that its default clock runs on a Web Worker, which browsers don't slow in a hidden tab, and that its `setInterval` runs off that worker's ticks. The metronome keeps clicking in a hidden tab too.
+- The choppy quick switch: my first version reset the piano every time the tab came back, which cuts off every note that is ringing. It now resets only if the browser had actually stopped the audio.
+- The inspector crash: the console showed `RangeError: ... roundRect ... Radius value -0.9942 is negative` at `renderer.ts:178`. Opening the inspector resizes the page, the canvas is a sliver for a moment, and the key widths go negative. The error was thrown inside the animation frame before the next frame was requested, so the loop died and the page froze. Now a frame is skipped when the canvas is under 160 by 80 px, the note radius can't go negative, and the frame loop always asks for the next frame and only logs an error. Time spent in a hidden tab is no longer printed as a "Slow frame".
+
+**What I checked**
+- `npm run build` passes and all seven test scripts pass.
+- Claude could not open a browser. I tried the tab switching myself: the Tone-timer version was still choppy on a quick switch, and after the reset was removed I said it was much better. The console line "Tab visible again. Audio is running." showed up each time.
+- Not confirmed by me yet: the smooth scrolling, and the inspector fix.
+
+**Decisions**
+- Learn still pauses when the tab is hidden. Autoplay keeps playing.
+- Nothing is reset when the tab comes back unless the audio had stopped.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -696,6 +720,11 @@ I started Friday's plan early.
 - **Backgrounds too dim:** Claude's first background colors were barely lighter than black (6 to 9% brightness), so I could barely see them in Settings. I asked for colors that actually match, and Claude made them deeper and more saturated, then added preview tiles. One of the tiles also had the two notes the wrong way round, which I pointed out.
 - **A claim in section 25 that wasn't true:** it says the Waiting display "moves out of the way of the control bar". It didn't until section 27, where I noticed it sitting under the bar and Claude built that.
 - **A stray character in this log:** an earlier log line had a carriage return and lost its backticks, because PowerShell treated a backtick followed by an r as an escape. Claude found it while writing this entry, by checking the files in binary, and fixed it. Its earlier scans for stray characters did not include that one.
+- **Theme colors only partly applied (I noticed):** when I added the theme, Claude tied it to the glow, the welcome buttons, the play button and the sliders only. I pointed out that the colors in the modes, the playback speed hover, the snap notifiers, the volume box and the NOW PLAYING pill did not follow it, and Claude then made the interface's accent follow the theme everywhere (section 26).
+- **Silent piano after switching browser tabs (I found it):** in Autoplay, switching to another tab left the piano silent, the timer slowing, and the keys dead even after skipping ahead. Claude guessed the cause (queueing the whole song at once when the tab hides, thousands of audio nodes) and could not reproduce it without a browser. Its first fix used an ordinary timer, which browsers slow in hidden tabs. The second used Tone's worker timer (section 28).
+- **My first fix made it choppy (I found it):** on a very quick switch away and back, the sound was very choppy, and midee's is not. The cause was Claude's own fix, which reset the piano every time the tab came back and cut off every note that was ringing. I found it by testing the worst case on purpose, and Claude removed the reset.
+- **The inspector killed the site (I found it):** opening the browser's inspector mid-song froze the page. My screenshot of the console showed the error. A sliver-sized canvas made the key widths negative, a canvas call threw, and because it threw inside the animation frame before the next frame was requested, the loop died for good. That weakness had been there from the first version: any error in a frame stopped the page. Claude fixed both (section 28).
+- **Windows line endings (Claude's slip):** one of Claude's Python edit scripts wrote Windows line endings into some files, because on Windows a file opened for writing converts line breaks. Claude found it when an exact-match edit failed on `renderer.ts`, and its later edits normalize the endings. Nothing was broken.
 - **Slips Claude caught itself:** it removed `mkdirSync` from an import in `make-edge-midis.mjs` and broke the script, which running it showed. It also wrote a broken font line in `renderer.ts` because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
 - **The metronome was tied to playback:** I said it should "just run the moment it is turned on, separate from me playing or not", and that Free play should have it. Claude had built it to follow the song's clock and hidden it in Free play. It reworked it, and then I asked for both modes (section 26).
 - **A helper that wrecked `style.css`:** a PowerShell helper Claude wrote broke when it was given a single replacement, and it replaced every `#` and `.` in the stylesheet with the letter "d". The build still passed, because broken CSS is not a build error. Claude caught it from an error message, kept a copy of the broken file outside the project, restored the file from the last commit and re-applied its own changes. It was never committed. Earlier, the same kind of PowerShell quoting silently blanked some `${...}` text and turned backticks in comments into stray characters. Claude scanned all the source files for both afterward.
@@ -730,3 +759,5 @@ I started Friday's plan early.
 - Considered making hiding a header chip also turn its feature off. Chose to only hide the chip.
 - Considered the bright note colors as backgrounds. Chose deep tints, so the notes and the text stay readable. White is the one light background.
 - Left Black and Charcoal out of the Theme row.
+- Considered resetting the piano whenever the tab comes back. That caused the choppy quick switch, so nothing is reset unless the audio had stopped.
+- Considered CSS `scroll-behavior: smooth` for the scroll areas. It does not smooth the mouse wheel, so the smoothing is done in code (`smooth-scroll.ts`).

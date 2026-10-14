@@ -643,6 +643,32 @@ I started Friday's plan early.
 
 ---
 
+## 27. Settings, tooltips, backgrounds, and small fixes (2026-10-14)
+
+**What I asked for**
+- A "hold to reset all settings" button at the bottom of Settings, with an animation. Switches to hide the header chips (the tempo, the notes count, the MIDI keyboard and the Sustain label), and a separate switch for the extra glow while the sustain pedal is held. My own tooltips in place of the browser's, in the site's theme, and rewording the ones that sounded janky.
+- A Background color setting like the note colors, with the current black kept as one choice and a gray-black like #181818. Then White as a background, and Black and Charcoal as note colors.
+- The "Waiting for" display should step out of the way of the control bar.
+
+**What changed**
+- A reset button that has to be held for 1.2 seconds while a red bar fills. Letting go early drains it. It resets the colors, theme, glows, Learn timing, key names and the options. It leaves my songs, the volume, and where the control bar and Waiting display sit.
+- Four switches (Tempo, Note count, MIDI keyboard, Sustain label) that only hide the chip in the header, done with a class on the page. A MIDI keyboard and the pedal work either way. A fifth switch, Sustain glow, makes the glow along the bar fade up brighter and taller while the pedal is held.
+- `tooltip.ts`: every `title` on the page now shows in a frosted bubble in the theme color, in the browser's top layer so it also shows above popups. I reworded the long ones, and the Tracks popup now just says how many tracks are on.
+- Background colors (`colors.ts`): Black (the original, the default), Charcoal #181818, ten deep saturated colors (Crimson, Rust, Amber, Olive, Emerald, Teal, Ocean, Cobalt, Violet, Plum) and White. In Settings they are small preview tiles: the real background, its name and the two hands' notes on it. Black and Charcoal were added as note colors.
+- A light background (White) keeps the interface's dark glass so the light text stays readable, and the notes and guide lines get dark outlines. Black and Charcoal are left out of the Theme row, because they would be nearly invisible as the interface's accent on a dark page.
+- The Waiting display's top and bottom spots, and their dotted outlines, move just past the control bar when it is a row in the way, and glide there.
+
+**What I checked**
+- `npm run build` passes and all seven test scripts pass. `test-colors.mjs` now also checks that white text has a contrast ratio of at least 7 on every dark background, and that black and charcoal are not offered as the theme.
+- Claude could not open a browser, so none of how these look or feel was checked by Claude. I tried most of them as they were built and asked for changes. The last round (the tiles' look, White, the Waiting display moving out of the way) is not confirmed by me yet.
+- Not verified: hovering a disabled button may not show its tooltip, because browsers often send no hover events for disabled buttons.
+
+**Decisions**
+- Hiding a chip never turns the feature off. The MIDI keyboard, the pedal and the notes count keep working, and the notes chip also holds some messages (like "Choose a MIDI file to begin"), which hiding it hides too.
+- The backgrounds are dark tints of the note-color families, not the bright note colors themselves, because bright ones would hide the notes and the text. Same-hue pairs, like amber notes on Amber, have the lowest contrast.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -666,7 +692,11 @@ I started Friday's plan early.
 - **The welcome line and the buttons:** the thin line of light on the welcome card turned off with the background glow, which I did not want, and the three mode buttons did not follow the theme color, because Claude had only tied the glow to it. Both fixed.
 - **Small details I had to point out:** the swap button's hover color was see-through, so the divider line showed behind it. The "Seconds early" box was inside a label as wide as the row, so a click beside it counted as a click on it, and clicking away didn't leave the box. The volume box, the key rows, and the space between the restart, play and seek controls were all too big or wrong at first.
 - **A commit that was nearly empty:** when I said to push, Claude ran one `git add` that included a folder I had just deleted (`public/demo`). Git refused the whole command, so the first commit (8f9f87a, titled as if it held the redesign) only recorded the deleted sample file, and the docs commit and the push still went through. Claude saw it in the output, said so, and pushed the real code as a new commit (b5cf830) rather than rewriting history that was already on GitHub. For a short while the repo had the docs but not the code.
-- **Slips Claude caught itself:** it removed mkdirSync from an import in make-edge-midis.mjs and broke the script, which running it showed. It also wrote a broken font line in enderer.ts because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
+- **"Disable" taken too literally:** I asked for options to disable the song's BPM, notes, MIDI keyboard and sustain. Claude first turned off the actual MIDI keyboard and the pedal. I meant only the header chips, and Claude changed it in section 27 (after asking what I meant by "notes").
+- **Backgrounds too dim:** Claude's first background colors were barely lighter than black (6 to 9% brightness), so I could barely see them in Settings. I asked for colors that actually match, and Claude made them deeper and more saturated, then added preview tiles. One of the tiles also had the two notes the wrong way round, which I pointed out.
+- **A claim in section 25 that wasn't true:** it says the Waiting display "moves out of the way of the control bar". It didn't until section 27, where I noticed it sitting under the bar and Claude built that.
+- **A stray character in this log:** an earlier log line had a carriage return and lost its backticks, because PowerShell treated a backtick followed by an r as an escape. Claude found it while writing this entry, by checking the files in binary, and fixed it. Its earlier scans for stray characters did not include that one.
+- **Slips Claude caught itself:** it removed `mkdirSync` from an import in `make-edge-midis.mjs` and broke the script, which running it showed. It also wrote a broken font line in `renderer.ts` because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
 - **The metronome was tied to playback:** I said it should "just run the moment it is turned on, separate from me playing or not", and that Free play should have it. Claude had built it to follow the song's clock and hidden it in Free play. It reworked it, and then I asked for both modes (section 26).
 - **A helper that wrecked `style.css`:** a PowerShell helper Claude wrote broke when it was given a single replacement, and it replaced every `#` and `.` in the stylesheet with the letter "d". The build still passed, because broken CSS is not a build error. Claude caught it from an error message, kept a copy of the broken file outside the project, restored the file from the last commit and re-applied its own changes. It was never committed. Earlier, the same kind of PowerShell quoting silently blanked some `${...}` text and turned backticks in comments into stray characters. Claude scanned all the source files for both afterward.
 - **Several rounds on the clipped digit:** the last digit in the volume and BPM boxes was cut off, and Claude tried a few causes in turn (fixed widths, then padding, then the dock squeezing its items, then tabular numbers). It never saw the clipping, so each was a reading of the layout, and the last fix is unconfirmed.
@@ -697,3 +727,6 @@ I started Friday's plan early.
 - Replaced the idea of a songs/ library with a history of the files I open (kept in the browser).
 - Considered a folder picker so a visitor could use their own song folder. Not built (Chrome and Edge only, and extra scope).
 - Considered making the whole UI accent follow the theme color. At first only the glow, the welcome buttons, the play button and the sliders did. Then I asked for the tabs, pills and the rest too, so the accent now follows the theme everywhere (section 26).
+- Considered making hiding a header chip also turn its feature off. Chose to only hide the chip.
+- Considered the bright note colors as backgrounds. Chose deep tints, so the notes and the text stay readable. White is the one light background.
+- Left Black and Charcoal out of the Theme row.

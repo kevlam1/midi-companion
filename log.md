@@ -504,7 +504,7 @@ I started Friday's plan early.
 **Decisions**
 - Mouse clicks on empty areas don't switch modes. Only a real piano key does.
 
-## 22. Volume, playback speed, and a sustain pedal (2026-10-14)
+## 22. Volume, playback speed, and a sustain pedal (2026-10-13)
 
 **What I asked for**
 - I asked Claude if I was missing features. It suggested a volume control, a playback speed, and the sustain pedal. I said yes to all three: speed from 0.25x to 2x, and if the pedal was easy, the space bar as the computer keyboard's pedal.
@@ -549,6 +549,7 @@ I started Friday's plan early.
 - **The other hand got cut off:** Claude's first hand picker silenced the other hand with the same hard fade as Pause whenever Learn stopped to wait, and didn't think about how often that would happen when I'm a beat late. I found it by listening, and Claude changed it in section 18.
 - **Welcome and popup details:** Claude's first welcome screen had far more text than I wanted and opened the file picker for Learn too. It also only opened the song popup from the welcome button and not from the Autoplay tab, and the drop box flickered, because each piece of text inside it counted as leaving the box. I told Claude each time, and it fixed them in section 20.
 - **Speed as a slider:** Claude built the playback speed as a slider with a value button. I wanted a button that cycles through the speeds, and a right click to go back. Claude changed it in section 22. Its first clock test also had an arithmetic mistake (it expected 12 where half speed gives 11), which Claude caught before running it, and Node's built-in TypeScript support couldn't read the shorthand constructor, so it was written out.
+- **Wrong date:** Claude dated section 22 as 2026-10-14 without checking the computer's clock. It was still 2026-10-13, and Claude fixed it.
 
 **My own mistakes**
 - Nothing yet.

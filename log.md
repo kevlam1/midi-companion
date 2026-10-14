@@ -541,4 +541,7 @@ I started Friday's plan early.
 - Considered supporting the sustain pedal. Left it out for now.
 - Removed the piano credit footer from the page for now (`main.ts`). The credit stays in `README.md`. I plan to credit Alexander Holm on the page another way, probably a Credits button. Claude's view was that the license asks for a credit "reasonable to the medium" and that the page is the safer place, since that's where the sound plays. It couldn't confirm that a README-only credit is enough, and I chose to go ahead anyway. I removed the unused `#credits` styles later, when I built the Settings panel (section 16).
 - Idea for later: a welcome prompt that asks me to pick a song, so the click that opens the file picker also turns the audio on and people don't think the page is broken when their keys are silent.
+- That welcome idea became the welcome card and the song popup (sections 20 and 21).
+- Considered a way back to the welcome card without reloading the page. Skipped it.
+- Considered a "Swap hands" button for a song where the pitch guess is wrong. Skipped it, because it was only worth building if the guess is ever wrong for a song, and it hasn't been for mine or the test songs.
 - Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.

@@ -2,7 +2,7 @@
 // repeated notes, drum tracks, out-of-range notes. Every note is listed below, so the expected result is known.
 // Run with: node scripts/make-edge-midis.mjs
 // Then it reads each file back and prints what the app should do with it (using the app's own hands.ts and learn.ts).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import pkg from '@tonejs/midi'
 import { orderTracksByPitch } from '../src/hands.ts'
 import { groupChords } from '../src/learn.ts'
@@ -58,6 +58,10 @@ const leftHand = {
   ],
 }
 write('two-hands.mid', [rightHand, leftHand])
+
+// The welcome screen's "Try the sample song" button loads this same song from public/demo/.
+mkdirSync('public/demo', { recursive: true })
+copyFileSync('test-files/two-hands.mid', 'public/demo/two-hands.mid')
 
 // 2. The same song with the left hand written first. The app orders tracks by pitch, so nothing should change.
 write('two-hands-reversed.mid', [leftHand, rightHand])

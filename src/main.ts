@@ -14,13 +14,13 @@ const app = document.querySelector<HTMLDivElement>('#app')
 if (app) {
   app.innerHTML = `
     <div id="tabs" role="tablist">
-      <button role="tab" data-mode="autoplay" aria-selected="true">Autoplay</button>
+      <button role="tab" data-mode="autoplay" aria-selected="false">Autoplay</button>
       <button role="tab" data-mode="free" aria-selected="false">Free play</button>
       <button role="tab" data-mode="learn" aria-selected="false">Learn</button>
     </div>
     <div id="toolbar">
       <h1>MIDI Companion</h1>
-      <input type="file" id="file" accept=".mid,.midi" />
+      <button id="open-song">Open song</button>
       <button id="play" disabled>Play</button>
       <button id="restart" disabled>Restart</button>
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled />
@@ -36,8 +36,30 @@ if (app) {
       <span id="fps"></span>
       <button id="settings-button" aria-haspopup="dialog">Settings</button>
     </div>
-    <canvas id="stage"></canvas>
-    <dialog id="settings">
+    <div id="stage-area">
+      <canvas id="stage"></canvas>
+      <div id="welcome">
+        <div class="welcome-card">
+          <button data-start="autoplay">Autoplay</button>
+          <button data-start="free">Free play</button>
+          <button data-start="learn">Learn</button>
+        </div>
+      </div>
+    </div>
+    <dialog id="song-dialog" class="panel">
+      <div class="dialog-header">
+        <h2>Choose a song</h2>
+        <form method="dialog"><button>Close</button></form>
+      </div>
+      <div id="drop-zone" tabindex="0" role="button">
+        <strong>Drag your .mid file here</strong>
+        <span>or click to browse</span>
+      </div>
+      <p id="song-error"></p>
+      <p class="muted">No file? <button id="sample" class="link">Try the sample song</button></p>
+      <input type="file" id="file" accept=".mid,.midi" hidden />
+    </dialog>
+    <dialog id="settings" class="panel">
       <div class="dialog-header">
         <h2>Settings</h2>
         <form method="dialog"><button>Close</button></form>
@@ -78,6 +100,10 @@ function start(app: HTMLDivElement): void {
   const settingsButton = app.querySelector<HTMLButtonElement>('#settings-button')!
   const settingsDialog = app.querySelector<HTMLDialogElement>('#settings')!
   const handButtons = app.querySelectorAll<HTMLButtonElement>('#hands button')
+  const openSongButton = app.querySelector<HTMLButtonElement>('#open-song')!
+  const songDialog = app.querySelector<HTMLDialogElement>('#song-dialog')!
+  const dropZone = app.querySelector<HTMLDivElement>('#drop-zone')!
+  const songError = app.querySelector<HTMLParagraphElement>('#song-error')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -97,8 +123,10 @@ function start(app: HTMLDivElement): void {
   const held = new Map<number, number>() // pointer id -> the key it is holding
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
   let midiStatus = '' // what the MIDI label says normally (the keyboard's name), so a hint can be cleared
-  type Mode = 'autoplay' | 'free' | 'learn'
-  let mode: Mode = 'autoplay' // Autoplay: the song plays itself. Free play: just the keyboard. Learn: the song waits for me.
+  type Mode = 'welcome' | 'autoplay' | 'free' | 'learn'
+  // Welcome: no mode picked yet (the first screen). Autoplay: the song plays itself. Free play: just the keyboard.
+  // Learn: the song waits for me.
+  let mode: Mode = 'welcome'
   const learn = new LearnSession()
   let learnHolding = false // true while Learn mode itself has stopped the clock to wait for me
   type Hand = 'both' | 'right' | 'left'
@@ -129,19 +157,65 @@ function start(app: HTMLDivElement): void {
     fileInput.value = ''
   })
 
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0]
-    if (!file) return
+  // The song popup: drop a file on the box or click it to browse. The real file input inside is hidden.
+  function openSongDialog(): void {
+    if (songDialog.open) return
+    dropZone.classList.remove('over')
+    songError.textContent = ''
+    songDialog.showModal()
+  }
+  openSongButton.addEventListener('click', openSongDialog)
+  songDialog.addEventListener('click', (event) => {
+    if (event.target === songDialog) songDialog.close() // a click on the dim area closes it
+  })
 
+  // Loads the file and closes the popup, or keeps it open and says what went wrong.
+  async function openFile(file: File): Promise<void> {
+    const error = loadSong(await file.arrayBuffer(), file.name)
+    if (error) songError.textContent = error
+    else songDialog.close()
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0]
+    if (file) void openFile(file)
+  })
+  dropZone.addEventListener('click', () => fileInput.click())
+  dropZone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      fileInput.click()
+    }
+  })
+  // dragover keeps firing while a file is held over the box, so the glow stays on the whole time.
+  dropZone.addEventListener('dragover', (event) => {
+    event.preventDefault() // needed, or the browser won't allow a drop here
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    dropZone.classList.add('over')
+  })
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'))
+  dropZone.addEventListener('drop', (event) => {
+    dropZone.classList.remove('over')
+    const file = event.dataTransfer?.files[0]
+    if (file) void openFile(file)
+  })
+  // Without these, dropping a file anywhere else would make the browser open it and leave the app.
+  window.addEventListener('dragover', (event) => event.preventDefault())
+  window.addEventListener('drop', (event) => event.preventDefault())
+
+  // Loads a song from MIDI file data, from the popup or the sample. `name` is only used in messages.
+  // Returns an error message if it couldn't load the song, or null if it did.
+  function loadSong(data: ArrayBuffer, name: string): string | null {
     let midi: Midi
     try {
-      midi = new Midi(await file.arrayBuffer())
+      midi = new Midi(data)
     } catch (error) {
-      console.error(`Couldn't read ${file.name}:`, error)
-      statusLabel.textContent = `Couldn't read ${file.name}. Is it a MIDI file?`
-      return // keep whatever song was loaded before
+      console.error(`Couldn't read ${name}:`, error)
+      const message = `Couldn't read ${name}. Is it a MIDI file?`
+      statusLabel.textContent = message
+      return message // keep whatever song was loaded before
     }
-    console.log(describe(file.name, midi))
+    console.log(describe(name, midi))
 
     // Skip drum tracks (their notes are drum sounds, not piano keys) and notes outside the 88 keys.
     const drumTracks = midi.tracks.filter((t) => t.instrument.percussion && t.notes.length > 0).length
@@ -163,8 +237,9 @@ function start(app: HTMLDivElement): void {
     const outOfRange = allNotes.length - songNotes.length
 
     if (songNotes.length === 0) {
-      statusLabel.textContent = `${file.name} has no piano notes to play.`
-      return
+      const message = `${name} has no piano notes to play.`
+      statusLabel.textContent = message
+      return message
     }
 
     clock.pause()
@@ -193,7 +268,28 @@ function start(app: HTMLDivElement): void {
     seekSlider.max = String(duration)
     if (pianoState !== 'loading') playButton.textContent = 'Play'
     if (mode === 'learn') startSong() // a song loaded in Learn starts running, so I can play right away
-  })
+    return null
+  }
+
+  // The sample song is a small two-hand exercise I made (public/demo/two-hands.mid), for visitors without a MIDI file.
+  async function loadSample(): Promise<void> {
+    try {
+      const response = await fetch('/demo/two-hands.mid')
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const error = loadSong(await response.arrayBuffer(), 'the sample song')
+      if (error) songError.textContent = error
+      else songDialog.close()
+    } catch (error) {
+      console.error("Couldn't load the sample song:", error)
+      songError.textContent = "Couldn't load the sample song."
+    }
+  }
+  app.querySelector<HTMLButtonElement>('#sample')!.addEventListener('click', () => void loadSample())
+
+  // The welcome screen: just the three mode names. The click on a button is also what turns the audio on.
+  app.querySelectorAll<HTMLButtonElement>('#welcome [data-start]').forEach((button) =>
+    button.addEventListener('click', () => chooseMode(button.dataset.start as Mode)),
+  )
 
   // Play the keys with the mouse or a finger. Dragging across the keys glides: each key plays as you reach it.
   function keyUnder(event: PointerEvent): Key | undefined {
@@ -290,11 +386,20 @@ function start(app: HTMLDivElement): void {
     pauseSong()
     mode = next
     app.dataset.mode = mode
+    if ((mode === 'autoplay' || mode === 'learn') && notes.length === 0 && !statusLabel.textContent) {
+      statusLabel.textContent = 'Choose a MIDI file to begin.'
+    }
     tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.mode === mode)))
     applyHand() // Learn waits for one hand and plays the other. Autoplay plays everything.
     if (mode === 'learn' && notes.length > 0) startSong() // Learn starts running, so I can play right away
   }
-  tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode as Mode)))
+  // What a click on a mode (a tab, or a button on the welcome screen) does. Autoplay with no song loaded
+  // asks for one right away, even if Autoplay is already the open tab.
+  function chooseMode(next: Mode): void {
+    setMode(next)
+    if (next === 'autoplay' && notes.length === 0) openSongDialog()
+  }
+  tabs.forEach((tab) => tab.addEventListener('click', () => chooseMode(tab.dataset.mode as Mode)))
 
   // The head start only matters when the song makes sound. In Learn with both hands chosen it is silent.
   function lead(): number {

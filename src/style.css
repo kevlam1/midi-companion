@@ -34,8 +34,8 @@ body {
   color: #fff;
 }
 
-/* Free play has no song, so the song controls are hidden. */
-#app[data-mode='free'] :is(#file, #play, #restart, #seek, #time, #status) {
+/* Free play has no song, and the welcome screen has no mode yet, so the song controls are hidden. */
+#app:is([data-mode='free'], [data-mode='welcome']) :is(#open-song, #play, #restart, #seek, #time, #status) {
   display: none;
 }
 
@@ -152,13 +152,14 @@ body {
   text-align: right;
 }
 
-/* Settings panel. The credits live at the bottom of it. */
-#settings-button {
+/* Popups (the song popup and the settings panel share the .panel look). The credits live at the bottom of Settings. */
+#settings-button,
+#open-song {
   padding: 0.25rem 0.75rem;
   cursor: pointer;
 }
 
-#settings {
+.panel {
   width: min(32rem, 90vw);
   padding: 1rem 1.25rem;
   border: 1px solid #3a3a3a;
@@ -167,17 +168,17 @@ body {
   color: #eee;
 }
 
-#settings::backdrop {
+.panel::backdrop {
   background: rgb(0 0 0 / 0.6);
 }
 
-#settings .dialog-header {
+.panel .dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-#settings h2 {
+.panel h2 {
   margin: 0;
   font-size: 1.1rem;
 }
@@ -189,7 +190,7 @@ body {
   font-size: 0.95rem;
 }
 
-#settings .muted {
+.panel .muted {
   color: #888;
 }
 
@@ -205,14 +206,113 @@ body {
   margin-top: 0.5rem;
 }
 
-#settings a {
+.panel a {
   color: #ffb870;
+}
+
+/* The song popup: a box to drop a file on, or click to browse. */
+#drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 1rem 0 0.5rem;
+  padding: 2rem 1rem;
+  border: 2px dashed #3a3a3a;
+  border-radius: 8px;
+  color: #bbb;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* The text inside ignores the pointer, so a drag moving over it doesn't count as leaving the box. */
+#drop-zone > * {
+  pointer-events: none;
+}
+
+#drop-zone strong {
+  color: #eee;
+  font-size: 1rem;
+}
+
+#drop-zone:hover,
+#drop-zone:focus-visible,
+#drop-zone.over {
+  border-color: #ffb870;
+  background: rgb(255 184 112 / 0.06);
+}
+
+#song-error {
+  min-height: 1.2em;
+  margin: 0 0 0.5rem;
+  color: #ff8a80;
+  font-size: 0.85rem;
+}
+
+.panel .link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #ffb870;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The canvas fills this wrapper, so the welcome card can sit over it. */
+#stage-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
 #stage {
   touch-action: none; /* so dragging a finger across the keys isn't taken over by the browser */
+  position: absolute;
+  inset: 0;
   display: block;
-  flex: 1;
   width: 100%;
-  min-height: 0;
+  height: 100%;
+}
+
+/* Welcome screen: a card over the empty falling-notes area. The piano below it stays playable,
+   so the overlay lets clicks through and only the card catches them. */
+#welcome {
+  position: absolute;
+  inset: 0 0 min(140px, 22%) 0; /* stops above the keyboard, which is min(140px, 22%) of the canvas tall */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+#app[data-mode='welcome'] #welcome {
+  display: flex;
+}
+
+.welcome-card {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: rgb(28 28 28 / 0.95);
+  pointer-events: auto;
+}
+
+.welcome-card button {
+  padding: 0.6rem 1.4rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #111;
+  color: #ffb870;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.welcome-card button:hover {
+  border-color: #ffb870;
 }

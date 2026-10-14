@@ -30,7 +30,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `src/hands.ts`: `orderTracksByPitch()` renumbers tracks by average pitch, highest first, so track 0 is the right hand (a guess from pitch; checked on my two songs, where the tracks never cross). Tested in `scripts/test-learn.mjs`.
 - `src/learn.ts`: Learn mode logic with no browser code. `nextTime()` is the next chord I have to play. `groupChords()` turns notes into chords (within 50 ms), and `LearnSession.update(songTime, pressTimes)` says "run" or "wait at this chord until these keys are played". `main.ts` stops and restarts the clock from it. Tested by `scripts/test-learn.mjs`.
 - `src/midi-input.ts`: Web MIDI. Asks for access, listens to every connected keyboard (and re-checks when one is plugged in), and turns note on and note off into `noteOn(midi, velocity 0 to 1)` and `noteOff(midi)` calls. Ignores pedals and everything else. `main.ts` connects these to `piano.press`/`release` and lights the keys.
-- `src/main.ts`: the Autoplay / Free play / Learn tabs, a Settings panel (a placeholder that holds the credits), toolbar, file loading (skips drum tracks, empty tracks, and notes outside the 88 keys; tags each note with its track, ranked by pitch), the hand picker, and the frame loop.
+- `src/main.ts`: the welcome card (three mode names, no mode picked at first), the Autoplay / Free play / Learn tabs, the song popup (drag a file onto the dashed box or click to browse, plus a sample song from `public/demo/`), a Settings panel (a placeholder that holds the credits), toolbar, file loading (skips drum tracks, empty tracks, and notes outside the 88 keys; tags each note with its track, ranked by pitch), the hand picker, and the frame loop.
 
 ## Web MIDI notes (checked on MDN 2026-10-12)
 - Works in Chrome 43+, Edge, and Firefox 108+. Not in Safari. Needs a secure page (HTTPS or `localhost`), and the browser asks permission.
@@ -43,7 +43,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 - `npm run build` type-checks (strict) and builds into `dist/`. Run it before committing.
 - `npm run preview` serves the built `dist/` locally.
 - `node scripts/make-test-midi.mjs` regenerates `test-files/c-major-scale.mid` (C4 to C5, 0.5 s per note, 120 BPM). Loading it on the page should print exactly those 8 notes.
-- `node scripts/make-edge-midis.mjs` writes six edge-case songs into `test-files/` (`two-hands`, `two-hands-reversed`, `three-tracks`, `repeated-notes`, `edge-cases`, `crossing-hands`) and prints what the page should show for each.
+- `node scripts/make-edge-midis.mjs` writes six edge-case songs into `test-files/` (`two-hands`, `two-hands-reversed`, `three-tracks`, `repeated-notes`, `edge-cases`, `crossing-hands`) and prints what the page should show for each. It also copies `two-hands.mid` to `public/demo/` for the sample song.
 - `node scripts/test-learn.mjs` tests the Learn logic and the hand ordering. It prints "All Learn mode checks passed."
 
 ## Open questions
@@ -52,6 +52,7 @@ A browser MIDI player and Synthesia-style visualizer: load a `.mid` file, watch 
 ## Decided behavior
 - Plain playback keeps playing when the tab is hidden. Learn mode must pause when the tab is hidden. Maybe a setting later.
 - Sustain pedal is ignored for now. Drum tracks and notes outside the 88 keys are skipped.
+- The welcome card shows on every page load with no mode picked, and there is no way back to it without reloading. Autoplay with no song loaded opens the song popup (from the welcome card or the tab). Learn and Free play never open it on their own. The toolbar's Open song button always does.
 
 ## Credits rule
 Any new sound samples or assets need their license checked and a credit added to `README.md` and on the page. The page footer was removed on 2026-10-12 by my choice, and on 2026-10-13 the credits moved into the Credits section at the bottom of the Settings panel (the Settings button in the toolbar). Claude's view: CC BY 3.0 asks for a credit "reasonable to the medium", and a credit behind a button is less visible than a footer, so keep the Settings button always visible in the toolbar (see `log.md`). Current: Salamander Grand Piano by Alexander Holm (CC BY 3.0).

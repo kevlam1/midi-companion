@@ -456,6 +456,30 @@ I started Friday's plan early.
 - I loaded all six in the browser and they all work well. In `crossing-hands.mid` I can see the right-hand notes going into the left half of the piano.
 - I did not say whether I tried Autoplay on them, so that stays unchecked.
 
+## 20. A welcome screen and a song popup (2026-10-13)
+
+**What I asked for**
+- A welcome screen. When the site opens, none of the modes should be selected. I left what it should contain up to Claude.
+- Claude's first version had a heading, a description under each mode, a sample-song link, and two lines of hints, and it opened the file picker for both Autoplay and Learn. I said that was too much. I wanted it concise, with just the mode names, and only Autoplay should open the song popup.
+- I wanted the file picker to be a custom popup that tells me to drop in my MIDI file. I gave Claude a screenshot of midee's dialog as an example.
+- I said that clicking Autoplay with no song loaded should open the popup, wherever I click it.
+- I said the drop box should keep lighting up while my file is over it.
+
+**What changed**
+- The page opens on a small card with three buttons (Autoplay, Free play, Learn), and no tab is selected. The piano below it stays playable.
+- The song popup ("Choose a song") has a dashed box to drag a `.mid` file onto, or click to browse, with Esc, a Close button, or a click outside to close it. If a file can't be read, the popup stays open and says so in red. "No file? Try the sample song" is underneath, and it loads `public/demo/two-hands.mid`. That is a copy of my own `two-hands.mid` test song, so it has no copyright problem, and `make-edge-midis.mjs` keeps the copy in sync.
+- Autoplay with no song loaded opens the popup from the welcome card, from the Autoplay tab, and from clicking the open tab again. Learn and Free play never open it by themselves.
+- The browser's plain "Choose file" control in the toolbar is now an "Open song" button that opens the same popup. A file dropped anywhere else on the page is ignored, so the browser doesn't open it and leave the app.
+- Claude took only the idea from the midee screenshot. The wording, layout and colors are its own, and there is no icon, because midee has no license.
+
+**What I checked**
+- `npm run build` passes, and the Node tests still pass.
+- I tried the welcome card and the popup in the browser, and the drop box now stays lit while I drag a file over it.
+- Not checked yet: a very short browser window, where the card might overlap the piano, and the live site.
+
+**Decisions**
+- The welcome card shows on every page load, and nothing is remembered. There is no way back to it without reloading.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -473,6 +497,7 @@ I started Friday's plan early.
 - **Learn mode was too easy:** the first rule let a key I was already holding count for a chord. Claude had warned me about the repeated-note case, but not that I could hold a key long before its note fell and Learn mode would never stop. I found that while testing, and Claude changed the rule to use when each key was pressed.
 - **Notes piled up before the first click:** when I added MIDI playing (section 13), the code still told the piano to play notes while the browser's audio was off. They all sounded at once, loudly, when I clicked. The hint said to click, but Claude hadn't thought through what the pressed notes would do while waiting. I found it by hearing it, and Claude fixed it in section 17.
 - **The other hand got cut off:** Claude's first hand picker silenced the other hand with the same hard fade as Pause whenever Learn stopped to wait, and didn't think about how often that would happen when I'm a beat late. I found it by listening, and Claude changed it in section 18.
+- **Welcome and popup details:** Claude's first welcome screen had far more text than I wanted and opened the file picker for Learn too. It also only opened the song popup from the welcome button and not from the Autoplay tab, and the drop box flickered, because each piece of text inside it counted as leaving the box. I told Claude each time, and it fixed them in section 20.
 
 **My own mistakes**
 - Nothing yet.

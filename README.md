@@ -5,7 +5,7 @@ A browser MIDI player and Synthesia-style visualizer. Load a `.mid` file, watch 
 Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 
 ## What works now
-- Load a `.mid` file from your computer. Nothing is uploaded; the file is read in the browser.
+- Load a `.mid` file by dragging it onto the song popup or clicking to browse, or try the built-in sample song. Nothing is uploaded; the file is read in the browser. The sample is `public/demo/two-hands.mid`, a small exercise I made.
 - Notes fall onto a full 88-key piano, drawn on a canvas. Notes on black keys are a darker orange.
 - A key lights up while its note is playing.
 - Notes are colored by track (orange, then blue), so a song with one track per hand shows the two hands in different colors.
@@ -13,6 +13,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Play the piano yourself by clicking or tapping the on-screen keys. Dragging across the keys glides.
 - Play it with a MIDI keyboard (Chrome or Edge; the page asks permission). Keys light up and play, and harder presses are louder.
 - Three tabs: **Autoplay** (the song plays itself), **Free play** (just the keyboard), and **Learn** (the song waits at each chord until you play its notes). Switching tabs keeps your place in the song.
+- The page opens on a small welcome card with no mode picked yet. Choosing Autoplay with no song loaded opens the song popup.
 - In Learn, for a song with two tracks, a hand picker lets you practice just the right hand or just the left. The other hand plays by itself. Which track is which hand is a guess from pitch, since MIDI files don't say.
 - A Settings button opens a panel. The settings are a placeholder for now, and the credits are at the bottom of it.
 - Piano sound that stays in sync with the picture, because both follow the audio clock.

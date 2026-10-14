@@ -14,6 +14,7 @@ const app = document.querySelector<HTMLDivElement>('#app')
 
 if (app) {
   app.innerHTML = `
+    <div id="header">
     <div id="tabs" role="tablist">
       <button role="tab" data-mode="autoplay" aria-selected="false">Autoplay</button>
       <button role="tab" data-mode="free" aria-selected="false">Free play</button>
@@ -22,15 +23,6 @@ if (app) {
     <div id="toolbar">
       <h1>MIDI Companion</h1>
       <button id="open-song">Open song</button>
-      <button id="play" disabled>Play</button>
-      <button id="restart" disabled>Restart</button>
-      <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled />
-      <span id="time">0.00 / 0.00 s</span>
-      <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
-      <div id="volume-group" class="slider">
-        <span>Volume</span>
-        <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
-      </div>
       <span id="status"></span>
       <span id="midi"></span>
       <div id="hands" role="group" aria-label="Hand to practice">
@@ -44,8 +36,21 @@ if (app) {
       <span id="fps"></span>
       <button id="settings-button" aria-haspopup="dialog">Settings</button>
     </div>
+    </div>
     <div id="stage-area">
       <canvas id="stage"></canvas>
+      <div id="controls" role="toolbar" aria-label="Playback controls">
+        <span id="grip" title="Drag to move the controls">⋮⋮</span>
+        <button id="play" disabled>Play</button>
+        <button id="restart" disabled>Restart</button>
+        <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
+        <span id="time">0.00 / 0.00 s</span>
+        <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
+        <div id="volume-group" class="slider">
+          <span>Volume</span>
+          <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+        </div>
+      </div>
       <div id="welcome">
         <div class="welcome-card">
           <h2 class="welcome-title">MIDI Companion <span>·</span> Piano Visualizer</h2>
@@ -147,6 +152,10 @@ function start(app: HTMLDivElement): void {
   const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
   const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
   volumeSlider.value = String(DEFAULT_VOLUME)
+  const header = app.querySelector<HTMLDivElement>('#header')!
+  const stageArea = app.querySelector<HTMLDivElement>('#stage-area')!
+  const controls = app.querySelector<HTMLDivElement>('#controls')!
+  const grip = app.querySelector<HTMLSpanElement>('#grip')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -182,6 +191,93 @@ function start(app: HTMLDivElement): void {
   const noNotes: FallingNote[] = [] // Free play draws no falling notes
   const pressTimes = new Map<number, number>() // key held down -> song time when it was pressed (for Learn mode)
   app.dataset.mode = mode
+
+  // The floating control bar. I drag it by the grip. It stays inside the falling-notes area: below the header
+  // and above the piano keys. Where it sits is kept as fractions of the free space (0 to 1 across and down), so
+  // it keeps its place when the window is resized, and it is remembered in this browser between visits.
+  const BAR_KEY = 'midi-companion.controls'
+  const BAR_MARGIN = 8 // px of space kept around the bar
+  let barPos = loadBarPosition()
+  let barDrag: { pointerId: number; dx: number; dy: number } | null = null
+
+  function loadBarPosition(): { x: number; y: number } {
+    const fallback = { x: 0.5, y: 0 } // top, in the middle
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(BAR_KEY) ?? 'null')
+      if (saved && typeof saved === 'object' && 'x' in saved && 'y' in saved) {
+        const { x, y } = saved as { x: unknown; y: unknown }
+        if (typeof x === 'number' && typeof y === 'number') {
+          return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }
+        }
+      }
+    } catch {
+      // nothing saved, or the browser won't let the page read it: use the default
+    }
+    return fallback
+  }
+
+  function saveBarPosition(): void {
+    try {
+      localStorage.setItem(BAR_KEY, JSON.stringify(barPos))
+    } catch {
+      // the browser won't let the page save: the bar just starts at the top next time
+    }
+  }
+
+  // The room the bar can move in, in pixels inside the stage area.
+  function barRoom(): { left: number; top: number; width: number; height: number } {
+    const left = BAR_MARGIN
+    const top = header.offsetHeight + BAR_MARGIN
+    const right = stageArea.clientWidth - BAR_MARGIN
+    const bottom = stageArea.clientHeight - keyboardLayout(canvas.clientHeight).height - BAR_MARGIN
+    return {
+      left,
+      top,
+      width: Math.max(0, right - left - controls.offsetWidth),
+      height: Math.max(0, bottom - top - controls.offsetHeight),
+    }
+  }
+
+  function placeBar(): void {
+    const room = barRoom()
+    controls.style.left = `${room.left + barPos.x * room.width}px`
+    controls.style.top = `${room.top + barPos.y * room.height}px`
+  }
+
+  grip.addEventListener('pointerdown', (event) => {
+    const rect = controls.getBoundingClientRect()
+    barDrag = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top }
+    grip.setPointerCapture(event.pointerId)
+    event.preventDefault() // no text selection while dragging
+  })
+  grip.addEventListener('pointermove', (event) => {
+    if (!barDrag || event.pointerId !== barDrag.pointerId) return
+    const area = stageArea.getBoundingClientRect()
+    const room = barRoom()
+    const x = event.clientX - area.left - barDrag.dx - room.left
+    const y = event.clientY - area.top - barDrag.dy - room.top
+    barPos = {
+      x: room.width > 0 ? Math.min(1, Math.max(0, x / room.width)) : 0,
+      y: room.height > 0 ? Math.min(1, Math.max(0, y / room.height)) : 0,
+    }
+    placeBar()
+  })
+  for (const type of ['pointerup', 'pointercancel']) {
+    grip.addEventListener(type, () => {
+      if (!barDrag) return
+      barDrag = null
+      saveBarPosition()
+    })
+  }
+
+  // The header's height (it wraps on a narrow window) and the bar's own size both change, so place the bar again.
+  new ResizeObserver(() => {
+    app.style.setProperty('--header-height', `${header.offsetHeight}px`)
+    placeBar()
+  }).observe(header)
+  new ResizeObserver(placeBar).observe(stageArea)
+  new ResizeObserver(placeBar).observe(controls)
+  placeBar()
 
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
   playButton.textContent = 'Loading piano…'
@@ -542,6 +638,7 @@ function start(app: HTMLDivElement): void {
     pauseSong()
     mode = next
     app.dataset.mode = mode
+    placeBar() // the bar shows different controls in different modes, so its size changes
     if ((mode === 'autoplay' || mode === 'learn') && notes.length === 0 && !statusLabel.textContent) {
       statusLabel.textContent = 'Choose a MIDI file to begin.'
     }

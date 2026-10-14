@@ -6,9 +6,20 @@ body {
 }
 
 #app {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100vh;
+  overflow: hidden;
+}
+
+/* The header (tabs and toolbar) sits over the canvas. Only its background is see-through, so the falling
+   notes show behind it. Its text and buttons are solid. */
+#header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  background: rgb(28 28 28 / 0.6);
 }
 
 /* Tabs: Autoplay, Free play, Learn. main.ts sets aria-selected on the open one and data-mode on #app. */
@@ -16,7 +27,6 @@ body {
   display: flex;
   gap: 0.25rem;
   padding: 0.4rem 1rem 0;
-  background: #1c1c1c;
 }
 
 #tabs button {
@@ -41,10 +51,44 @@ body {
 
 #toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 1rem;
-  background: #1c1c1c;
+}
+
+/* The floating control bar. main.ts sets its left and top. Its background is see-through, its controls are solid. */
+#controls {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 10px;
+  background: rgb(28 28 28 / 0.6);
+}
+
+#app[data-mode='welcome'] #controls {
+  display: none;
+}
+
+#grip {
+  padding: 0 0.15rem;
+  color: #999;
+  font-size: 1.1rem;
+  line-height: 1;
+  letter-spacing: -0.2em;
+  cursor: grab;
+  touch-action: none; /* so dragging with a finger moves the bar and doesn't scroll */
+  user-select: none;
+}
+
+#grip:active {
+  cursor: grabbing;
 }
 
 #toolbar h1 {
@@ -55,7 +99,9 @@ body {
 /* Seek slider. The played part is filled orange using --progress, set from main.ts. */
 #seek {
   --progress: 0%;
-  flex: 1;
+  flex: 0 1 260px;
+  width: 260px;
+  min-width: 100px;
   height: 1rem;
   margin: 0;
   background: transparent;
@@ -107,6 +153,11 @@ body {
 #time,
 #fps {
   font-variant-numeric: tabular-nums;
+}
+
+#time {
+  min-width: 11ch;
+  text-align: right;
 }
 
 #status,
@@ -295,9 +346,8 @@ body {
 
 /* The canvas fills this wrapper, so the welcome card can sit over it. */
 #stage-area {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
 
 #stage {
@@ -318,7 +368,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: auto;
-  padding: 1rem;
+  padding: calc(var(--header-height, 0px) + 1rem) 1rem 1rem; /* clear of the header, which now sits over the canvas */
   pointer-events: none;
 }
 
@@ -393,6 +443,7 @@ body {
 /* Shown while a file is dragged over the page, so it's clear it can be dropped anywhere. */
 #drop-overlay {
   position: absolute;
+  z-index: 10; /* over the header and the control bar */
   inset: 0.5rem;
   display: none;
   align-items: center;

@@ -639,7 +639,7 @@ I started Friday's plan early.
 
 **Decisions**
 - The metronome starts in Free mode. A tempo I type stays across songs until Auto, and it is real beats per minute, not scaled by the playback speed.
-- Considered a folder picker for my own songs. Not built.
+- Considered a folder picker for my own songs. Not built. Built later after all (section 29).
 
 ---
 
@@ -693,6 +693,29 @@ I started Friday's plan early.
 
 ---
 
+## 29. A folder of my own songs (2026-10-14)
+
+**What I asked for**
+- Asked how a folder picker would work before building it, then said to add it.
+
+**What Claude checked first**
+- TypeScript's own browser type definitions (version 6.0.3) have `FileSystemDirectoryHandle` with `values()`, `kind` and `name`. They do **not** have `showDirectoryPicker`, or `queryPermission` and `requestPermission` on a handle, because those are Chromium-only. So `folder.ts` declares small shapes for just those, and checks at run time that the picker exists. Claude described the rest of the API from memory and did not read MDN, so how it behaves is untested.
+
+**What changed**
+- `folder.ts`: choose a folder, list the `.mid` and `.midi` files directly in it (not subfolders, and skipping the hidden `._` copies macOS leaves), read a file when it is clicked, and keep the folder handle in its own IndexedDB so it can be offered again next visit. The browser asks for permission again on a new visit, so an "Allow access" button shows until it is given.
+- The song popup has a "Your folder" section (Choose a folder, Change, Rescan, Remove), and the welcome list has a third tab, "Your folder", which is always there in Chrome and Edge and has a "Choose a folder" button inside it. The section is hidden in browsers without the picker (Firefox, Safari). Folder songs are not added to the history, since the files stay on disk.
+- `test-folder.mjs` checks the file-name filter and the sorting.
+
+**What I checked**
+- `npm run build` passes and all eight test scripts pass.
+- Claude could not open a browser, so the picker, the permission prompt and the remembered folder have not been tried by anyone. They need Chrome or Edge.
+
+**Decisions**
+- Top-level files only, no subfolders. No fallback for Firefox and Safari: the feature is hidden there.
+- Earlier I had decided not to build this (scope, and Chrome and Edge only), then changed my mind.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -725,6 +748,7 @@ I started Friday's plan early.
 - **My first fix made it choppy (I found it):** on a very quick switch away and back, the sound was very choppy, and midee's is not. The cause was Claude's own fix, which reset the piano every time the tab came back and cut off every note that was ringing. I found it by testing the worst case on purpose, and Claude removed the reset.
 - **The inspector killed the site (I found it):** opening the browser's inspector mid-song froze the page. My screenshot of the console showed the error. A sliver-sized canvas made the key widths negative, a canvas call threw, and because it threw inside the animation frame before the next frame was requested, the loop died for good. That weakness had been there from the first version: any error in a frame stopped the page. Claude fixed both (section 28).
 - **Windows line endings (Claude's slip):** one of Claude's Python edit scripts wrote Windows line endings into some files, because on Windows a file opened for writing converts line breaks. Claude found it when an exact-match edit failed on `renderer.ts`, and its later edits normalize the endings. Nothing was broken.
+- **The folder was missing from the welcome screen (I found it):** Claude added the welcome tab for "Your folder" but only showed it once a folder had already been chosen. Nothing on the welcome screen could choose one, so it never appeared. I sent a screenshot of the welcome screen, and Claude made the tab always visible with a button to choose a folder (section 29).
 - **Slips Claude caught itself:** it removed `mkdirSync` from an import in `make-edge-midis.mjs` and broke the script, which running it showed. It also wrote a broken font line in `renderer.ts` because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
 - **The metronome was tied to playback:** I said it should "just run the moment it is turned on, separate from me playing or not", and that Free play should have it. Claude had built it to follow the song's clock and hidden it in Free play. It reworked it, and then I asked for both modes (section 26).
 - **A helper that wrecked `style.css`:** a PowerShell helper Claude wrote broke when it was given a single replacement, and it replaced every `#` and `.` in the stylesheet with the letter "d". The build still passed, because broken CSS is not a build error. Claude caught it from an error message, kept a copy of the broken file outside the project, restored the file from the last commit and re-applied its own changes. It was never committed. Earlier, the same kind of PowerShell quoting silently blanked some `${...}` text and turned backticks in comments into stray characters. Claude scanned all the source files for both afterward.
@@ -754,7 +778,7 @@ I started Friday's plan early.
 - Considered pausing whenever the tab is hidden. Kept playback going in plain playback mode; Learn mode will pause. Possible future setting.
 - Removed the built-in sample song and its file (public/demo/two-hands.mid). Shared songs now go in samplesongs/.
 - Replaced the idea of a songs/ library with a history of the files I open (kept in the browser).
-- Considered a folder picker so a visitor could use their own song folder. Not built (Chrome and Edge only, and extra scope).
+- Considered a folder picker so a visitor could use their own song folder. Not built (Chrome and Edge only, and extra scope). Built later after all, for Chrome and Edge only (section 29).
 - Considered making the whole UI accent follow the theme color. At first only the glow, the welcome buttons, the play button and the sliders did. Then I asked for the tabs, pills and the rest too, so the accent now follows the theme everywhere (section 26).
 - Considered making hiding a header chip also turn its feature off. Chose to only hide the chip.
 - Considered the bright note colors as backgrounds. Chose deep tints, so the notes and the text stay readable. White is the one light background.

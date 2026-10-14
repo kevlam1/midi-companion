@@ -480,6 +480,30 @@ I started Friday's plan early.
 **Decisions**
 - The welcome card shows on every page load, and nothing is remembered. There is no way back to it without reloading.
 
+## 21. The welcome card grows up, and the computer keyboard plays (2026-10-13)
+
+**What I asked for**
+- The welcome card should still have the site's title ("MIDI Companion · Piano Visualizer").
+- A pill that says whether a MIDI device was detected, with the device's name when it is, and when it isn't, that other ways to play work too.
+- A line at the bottom telling people to drop a .mid file anywhere. Dropping one should then ask Autoplay or Learn and go on from there.
+- Claude pointed out that the computer keyboard didn't actually play notes, so the pill couldn't honestly say "keyboard". I said yes, build it.
+- Playing from the welcome screen should go straight to Free play, and that includes clicking the piano keys.
+
+**What changed**
+- The welcome card has the title, the pill (green with the device name, e.g. "MIDI keyboard detected: DONNER N25", or grey with "No MIDI device detected. Keyboard, mouse and touch work too."), the three modes, and "or drop a .mid file anywhere". `midi-input.ts` now passes the device names along.
+- Dropping a .mid file anywhere loads it. While a file is dragged over the page, a dashed overlay says where to drop. In Autoplay or Learn it just loads. On the welcome screen or in Free play, a small popup asks "Open it in: Autoplay / Learn". A file that can't be read opens the song popup with the error.
+- `src/computer-keys.ts`: the computer keyboard plays the piano. Z to M is C4 to B4 with S D G H J as the black keys, and Q to U is C5 to B5 with 2 3 5 6 7 as black keys, and the rows continue a little further. Keys are read by position, so other layouts work too. The left and right arrows move it by an octave. Ctrl, Cmd and Alt combos are ignored, holding a key doesn't retrigger it, nothing plays while a popup is open, and held notes are let go when the window loses focus. It counts in Learn like a MIDI keyboard, and the first key press turns the audio on. The Settings panel lists the layout.
+- The first note played from the welcome screen, by computer key, MIDI keyboard or a click on the piano, goes straight to Free play and still sounds.
+- `scripts/test-keys.mjs` tests the key mapping (the note numbers, which keys are black, the octave limits).
+
+**What I checked**
+- `npm run build` passes, and both test scripts pass.
+- I tried the computer keyboard and it works.
+- Not confirmed yet: the pill in both states, the drop-anywhere overlay and the Autoplay-or-Learn popup, the switch to Free play from each input, other keyboard layouts, and a very short window.
+
+**Decisions**
+- Mouse clicks on empty areas don't switch modes. Only a real piano key does.
+
 ---
 
 ## Where AI misread me, or I had to correct course

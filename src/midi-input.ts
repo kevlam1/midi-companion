@@ -4,7 +4,7 @@
 export interface MidiHandlers {
   noteOn(midi: number, velocity: number): void // velocity from 0 to 1
   noteOff(midi: number): void
-  status(text: string): void // a short message for the toolbar
+  status(text: string, devices?: string[]): void // a short message for the toolbar, and the names of the keyboards found
 }
 
 export async function startMidiInput(handlers: MidiHandlers): Promise<void> {
@@ -32,7 +32,7 @@ export async function startMidiInput(handlers: MidiHandlers): Promise<void> {
       input.onmidimessage = (event) => handleMessage(event, handlers)
     })
     console.log(`MIDI inputs: ${names.length ? names.join(', ') : 'none'}`)
-    handlers.status(names.length ? `MIDI keyboard: ${names.join(', ')}` : 'No MIDI keyboard found. Plug one in.')
+    handlers.status(names.length ? `MIDI keyboard: ${names.join(', ')}` : 'No MIDI keyboard found. Plug one in.', names)
   }
 
   access.onstatechange = listen

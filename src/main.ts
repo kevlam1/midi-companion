@@ -2,6 +2,7 @@ import './style.css'
 import { Midi } from '@tonejs/midi'
 import { Frequency, getContext, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
+import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { LearnSession, groupChords } from './learn.ts'
@@ -33,6 +34,7 @@ if (app) {
         <button data-hand="left" aria-pressed="false">Left hand</button>
       </div>
       <span id="learn"></span>
+      <span id="octave"></span>
       <span id="fps"></span>
       <button id="settings-button" aria-haspopup="dialog">Settings</button>
     </div>
@@ -40,11 +42,20 @@ if (app) {
       <canvas id="stage"></canvas>
       <div id="welcome">
         <div class="welcome-card">
-          <button data-start="autoplay">Autoplay</button>
-          <button data-start="free">Free play</button>
-          <button data-start="learn">Learn</button>
+          <h2 class="welcome-title">MIDI Companion <span>·</span> Piano Visualizer</h2>
+          <div id="midi-pill" class="pill" data-detected="false">
+            <span class="dot"></span>
+            <span id="midi-pill-text">Looking for a MIDI device…</span>
+          </div>
+          <div class="welcome-modes">
+            <button data-start="autoplay">Autoplay</button>
+            <button data-start="free">Free play</button>
+            <button data-start="learn">Learn</button>
+          </div>
+          <p class="hint">or drop a .mid file anywhere</p>
         </div>
       </div>
+      <div id="drop-overlay">Drop your .mid file to load it</div>
     </div>
     <dialog id="song-dialog" class="panel">
       <div class="dialog-header">
@@ -59,12 +70,28 @@ if (app) {
       <p class="muted">No file? <button id="sample" class="link">Try the sample song</button></p>
       <input type="file" id="file" accept=".mid,.midi" hidden />
     </dialog>
+    <dialog id="mode-dialog" class="panel">
+      <div class="dialog-header">
+        <h2>Open it in</h2>
+        <form method="dialog"><button>Close</button></form>
+      </div>
+      <p id="mode-file" class="muted"></p>
+      <div class="mode-choices">
+        <button data-open="autoplay">Autoplay</button>
+        <button data-open="learn">Learn</button>
+      </div>
+    </dialog>
     <dialog id="settings" class="panel">
       <div class="dialog-header">
         <h2>Settings</h2>
         <form method="dialog"><button>Close</button></form>
       </div>
       <p class="muted">Settings are coming soon.</p>
+      <h3>Computer keyboard</h3>
+      <p class="muted">
+        Z S X D C V G B H N J M play C4 to B4 (S D G H J are the black keys). Q 2 W 3 E R 5 T 6 Y 7 U play C5 to B5.
+        The left and right arrow keys move the keys down or up an octave.
+      </p>
       <h3>Credits</h3>
       <ul>
         <li>
@@ -104,6 +131,11 @@ function start(app: HTMLDivElement): void {
   const songDialog = app.querySelector<HTMLDialogElement>('#song-dialog')!
   const dropZone = app.querySelector<HTMLDivElement>('#drop-zone')!
   const songError = app.querySelector<HTMLParagraphElement>('#song-error')!
+  const modeDialog = app.querySelector<HTMLDialogElement>('#mode-dialog')!
+  const modeFile = app.querySelector<HTMLParagraphElement>('#mode-file')!
+  const midiPill = app.querySelector<HTMLDivElement>('#midi-pill')!
+  const midiPillText = app.querySelector<HTMLSpanElement>('#midi-pill-text')!
+  const octaveLabel = app.querySelector<HTMLSpanElement>('#octave')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
@@ -122,6 +154,8 @@ function start(app: HTMLDivElement): void {
   const down = new Set<number>() // pointers (mouse or fingers) currently pressed on the canvas
   const held = new Map<number, number>() // pointer id -> the key it is holding
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
+  const typedHeld = new Map<string, number>() // computer keys held down (by position, e.g. KeyZ) -> the piano key each plays
+  let octaveShift = 0 // how many octaves the computer keys are moved, with the left and right arrows
   let midiStatus = '' // what the MIDI label says normally (the keyboard's name), so a hint can be cleared
   type Mode = 'welcome' | 'autoplay' | 'free' | 'learn'
   // Welcome: no mode picked yet (the first screen). Autoplay: the song plays itself. Free play: just the keyboard.
@@ -194,14 +228,49 @@ function start(app: HTMLDivElement): void {
     dropZone.classList.add('over')
   })
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'))
-  dropZone.addEventListener('drop', (event) => {
+
+  // Drop a .mid file anywhere on the page. With the song popup open it loads like a click on the box. In Autoplay
+  // or Learn it just loads. On the welcome screen or in Free play it loads and then asks Autoplay or Learn.
+  function isFileDrag(event: DragEvent): boolean {
+    return event.dataTransfer?.types.includes('Files') ?? false
+  }
+  window.addEventListener('dragover', (event) => {
+    event.preventDefault() // otherwise the browser would open the file and leave the app
+    if (isFileDrag(event) && !songDialog.open) app.classList.add('dragging')
+  })
+  window.addEventListener('dragleave', (event) => {
+    if (event.relatedTarget === null) app.classList.remove('dragging') // the file left the window
+  })
+  window.addEventListener('drop', (event) => {
+    event.preventDefault()
+    app.classList.remove('dragging')
     dropZone.classList.remove('over')
     const file = event.dataTransfer?.files[0]
-    if (file) void openFile(file)
+    if (file) void dropFile(file)
   })
-  // Without these, dropping a file anywhere else would make the browser open it and leave the app.
-  window.addEventListener('dragover', (event) => event.preventDefault())
-  window.addEventListener('drop', (event) => event.preventDefault())
+
+  async function dropFile(file: File): Promise<void> {
+    if (songDialog.open) return openFile(file)
+    const error = loadSong(await file.arrayBuffer(), file.name)
+    if (error) {
+      openSongDialog() // show what went wrong, and let me try another file
+      songError.textContent = error
+    } else if (mode === 'welcome' || mode === 'free') {
+      modeFile.textContent = file.name
+      modeDialog.showModal()
+    }
+  }
+
+  // After a file is dropped on the welcome screen or in Free play: which mode should it open in?
+  modeDialog.querySelectorAll<HTMLButtonElement>('[data-open]').forEach((button) =>
+    button.addEventListener('click', () => {
+      modeDialog.close()
+      setMode(button.dataset.open as Mode)
+    }),
+  )
+  modeDialog.addEventListener('click', (event) => {
+    if (event.target === modeDialog) modeDialog.close()
+  })
 
   // Loads a song from MIDI file data, from the popup or the sample. `name` is only used in messages.
   // Returns an error message if it couldn't load the song, or null if it did.
@@ -297,6 +366,52 @@ function start(app: HTMLDivElement): void {
     return keyAt(keys, event.clientX - rect.left, event.clientY - rect.top, keyboardLayout(canvas.clientHeight))
   }
 
+  // Play the piano with the computer's keyboard (see computer-keys.ts). The left and right arrows move it by an octave.
+  // The first key press also turns the audio on, because a key press is a real user action.
+  function showOctave(): void {
+    octaveLabel.textContent = `Computer keys start at C${4 + octaveShift} (← → for octave)`
+  }
+  function releaseTyped(): void {
+    const midis = [...typedHeld.values()]
+    typedHeld.clear()
+    for (const midi of midis) {
+      if (!isHeld(midi)) piano.release(midi)
+      noteUp(midi)
+    }
+  }
+  window.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return // shortcuts like Ctrl+C aren't notes
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return // e.g. the seek slider
+    if (app.querySelector('dialog[open]')) return // a popup is open
+
+    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+      event.preventDefault()
+      octaveShift = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, octaveShift + (event.code === 'ArrowRight' ? 1 : -1)))
+      showOctave()
+      return
+    }
+
+    const midi = noteForKey(event.code, octaveShift)
+    if (midi === undefined) return // not a piano key, or the octave shift moved it off the 88 keys
+    event.preventDefault() // some of these keys (like /) would otherwise open the browser's search
+    if (event.repeat || typedHeld.has(event.code)) return // holding a key doesn't play it again
+    if (mode === 'welcome') setMode('free') // playing from the welcome screen goes straight to Free play
+    typedHeld.set(event.code, midi)
+    noteDown(midi)
+    if (!octaveLabel.textContent) showOctave()
+    void startAudio().then(() => {
+      if (typedHeld.get(event.code) === midi) piano.press(midi) // unless I already let go
+    })
+  })
+  window.addEventListener('keyup', (event) => {
+    const midi = typedHeld.get(event.code)
+    if (midi === undefined) return
+    typedHeld.delete(event.code)
+    if (!isHeld(midi)) piano.release(midi)
+    noteUp(midi)
+  })
+  window.addEventListener('blur', releaseTyped) // the browser may never send the key-up if the window loses focus
+
   // Settings panel (a placeholder for now). It holds the credits. Esc, the Close button, or a click on the dim area closes it.
   settingsButton.addEventListener('click', () => settingsDialog.showModal())
   settingsDialog.addEventListener('click', (event) => {
@@ -307,8 +422,11 @@ function start(app: HTMLDivElement): void {
   function noteDown(midi: number): void {
     if (!pressTimes.has(midi)) pressTimes.set(midi, clock.time)
   }
+  function isHeld(midi: number): boolean {
+    return midiHeld.has(midi) || [...held.values()].includes(midi) || [...typedHeld.values()].includes(midi)
+  }
   function noteUp(midi: number): void {
-    if (!midiHeld.has(midi) && ![...held.values()].includes(midi)) pressTimes.delete(midi)
+    if (!isHeld(midi)) pressTimes.delete(midi)
   }
 
   // Makes this pointer hold `key` (or nothing): lets go of the key it held before, then presses the new one.
@@ -329,6 +447,7 @@ function start(app: HTMLDivElement): void {
 
   canvas.addEventListener('pointerdown', async (event) => {
     if (!keyUnder(event)) return
+    if (mode === 'welcome') setMode('free') // playing from the welcome screen goes straight to Free play
     canvas.setPointerCapture(event.pointerId) // keep getting moves even if the pointer leaves the canvas
     down.add(event.pointerId)
     await startAudio() // browsers only allow sound after a click, so the audio starts here
@@ -351,6 +470,7 @@ function start(app: HTMLDivElement): void {
     down.clear()
     for (const midi of midiHeld) piano.release(midi)
     midiHeld.clear()
+    releaseTyped()
     pressTimes.clear()
   })
 
@@ -519,7 +639,15 @@ function start(app: HTMLDivElement): void {
 
     const time = clock.time
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(ctx, width, height, keys, mode === 'free' ? noNotes : notes, time, new Set([...held.values(), ...midiHeld]))
+    draw(
+      ctx,
+      width,
+      height,
+      keys,
+      mode === 'free' ? noNotes : notes,
+      time,
+      new Set([...held.values(), ...midiHeld, ...typedHeld.values()]),
+    )
     timeLabel.textContent = `${time.toFixed(2)} / ${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
@@ -562,6 +690,7 @@ function start(app: HTMLDivElement): void {
   void startMidiInput({
     noteOn: (midi, velocity) => {
       if (midi < LOWEST || midi > HIGHEST) return // outside the 88 keys
+      if (mode === 'welcome') setMode('free') // playing from the welcome screen goes straight to Free play
       midiHeld.add(midi) // the key still lights up, and still counts for Learn mode
       noteDown(midi)
       if (getContext().rawContext.state !== 'running') {
@@ -578,9 +707,15 @@ function start(app: HTMLDivElement): void {
         noteUp(midi)
       }
     },
-    status: (text) => {
+    status: (text, devices = []) => {
       midiStatus = text
       midiLabel.textContent = text
+      // The welcome screen's pill says which MIDI keyboard was found, or that none was and the mouse works.
+      midiPill.dataset.detected = String(devices.length > 0)
+      midiPillText.textContent =
+        devices.length > 0
+          ? `MIDI keyboard detected: ${devices.join(', ')}`
+          : 'No MIDI device detected. Keyboard, mouse and touch work too.'
     },
   })
 

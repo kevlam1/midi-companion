@@ -41,7 +41,7 @@ const KEY_NOTES: Partial<Record<string, number>> = {
   KeyP: 88, // E6
 }
 
-// How many octaves the arrow keys can move the keys: C4 shifted down 3 is C1, and the top key shifted up 2 is still on the piano.
+// How many octaves the up and down arrow keys can move the keys: C4 shifted down 3 is C1, and the top key shifted up 2 is still on the piano.
 export const OCTAVE_MIN = -3
 export const OCTAVE_MAX = 2
 

@@ -11,6 +11,14 @@ export interface Key {
   width: number
 }
 
+const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+// The name shown on a key or a note: C, C#, D ... B. A C also shows its octave (C4 is middle C), as a landmark.
+export function keyLabel(midi: number): string {
+  const name = NAMES[midi % 12]
+  return midi % 12 === 0 ? `${name}${Math.floor(midi / 12) - 1}` : name
+}
+
 export function isBlack(midi: number): boolean {
   return BLACK_PITCHES.has(midi % 12)
 }

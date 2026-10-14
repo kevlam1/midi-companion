@@ -12,7 +12,21 @@ const CHORD_WINDOW = 0.05 // notes starting within 50 ms of a chord's first note
 
 // How early a key can be pressed and still count for a chord (s). About 20 px of falling distance.
 // A key held down from before that doesn't count: let go and press it again.
+// This is the default. Settings lets me pick another (see EARLY_CHOICES). The smallest choice is "precise": a key
+// only counts if it is pressed when the notes reach the keys, give or take a hair.
 export const EARLY = 0.1
+export const PRECISE_EARLY = 0.025
+export const EARLY_CHOICES = [PRECISE_EARLY, 0.05, 0.1, 0.15, 0.2] // the preset choices in Settings, in seconds
+export const MAX_EARLY = 1 // the most a custom value can be
+
+// Reads what was saved in the browser: a number of seconds, kept between 0 and MAX_EARLY and rounded to 0.001.
+// Nothing saved, or anything that isn't a number, gives the default.
+export function parseEarly(raw: string | null): number {
+  if (raw === null || raw.trim() === '') return EARLY
+  const value = Number(raw)
+  if (!Number.isFinite(value)) return EARLY
+  return Math.min(MAX_EARLY, Math.max(0, Math.round(value * 1000) / 1000))
+}
 
 // Groups notes that start together. `notes` must be sorted by time (main.ts sorts them).
 export function groupChords(notes: FallingNote[]): Chord[] {
@@ -38,6 +52,11 @@ export class LearnSession {
   private next = 0 // index of the next chord to be played
   private waiting: Chord | null = null // the chord the song is stopped at, if any
   private used = new Map<number, number>() // key -> the press that already counted for a chord
+  early = EARLY // how early a key can be pressed and still count (s). Settings changes it.
+  // When true, a chord goes through once each of its notes has been pressed at least once, even if they were not
+  // down together (a mouse can only press one key at a time). Settings changes it.
+  oneByOne = false
+  private got = new Map<number, number>() // chord being played, in one-by-one mode: key -> the press that counted
 
   // Start over with a new song.
   load(chords: Chord[]): void {
@@ -51,6 +70,7 @@ export class LearnSession {
     this.next = index === -1 ? this.chords.length : index
     this.waiting = null
     this.used.clear()
+    this.got.clear()
   }
 
   // Song time of the next chord I still have to play, or Infinity if there are none left.
@@ -60,11 +80,12 @@ export class LearnSession {
 
   // Call every frame with the song time and the keys that are down (mouse and MIDI together).
   // `pressed` maps each key that is down to the song time when it went down.
-  // A key counts for a chord if it went down no more than EARLY before the chord, and it has not
+  // A key counts for a chord if it went down no more than `early` before the chord, and it has not
   // already counted for an earlier chord. Wrong keys are ignored.
   update(time: number, pressed: Map<number, number>): LearnStep {
     while (this.next < this.chords.length) {
       const chord = this.chords[this.next]
+      if (this.oneByOne) this.collect(chord, pressed) // presses just before the chord arrives count too
       if (this.waiting === chord) {
         if (!this.isPlayed(chord, pressed)) return { kind: 'wait', time: chord.time, need: chord.midis }
         this.waiting = null // got it, move on
@@ -82,10 +103,26 @@ export class LearnSession {
     return RUN
   }
 
+  // One-by-one mode: remembers each of the chord's keys that has a fresh press, so it still counts after the key is let go.
+  private collect(chord: Chord, pressed: Map<number, number>): void {
+    for (const midi of chord.midis) {
+      if (this.got.has(midi)) continue
+      const at = pressed.get(midi)
+      if (at === undefined || at < chord.time - this.early) continue
+      const usedAt = this.used.get(midi)
+      if (usedAt !== undefined && at <= usedAt) continue
+      this.got.set(midi, at)
+    }
+  }
+
   private isPlayed(chord: Chord, pressed: Map<number, number>): boolean {
+    if (this.oneByOne) {
+      this.collect(chord, pressed)
+      return chord.midis.every((midi) => this.got.has(midi))
+    }
     return chord.midis.every((midi) => {
       const at = pressed.get(midi)
-      if (at === undefined || at < chord.time - EARLY) return false
+      if (at === undefined || at < chord.time - this.early) return false
       const usedAt = this.used.get(midi)
       return usedAt === undefined || at > usedAt
     })
@@ -93,7 +130,8 @@ export class LearnSession {
 
   // Remember which presses were used, and move on to the next chord.
   private finish(chord: Chord, pressed: Map<number, number>): void {
-    for (const midi of chord.midis) this.used.set(midi, pressed.get(midi) ?? chord.time)
+    for (const midi of chord.midis) this.used.set(midi, this.got.get(midi) ?? pressed.get(midi) ?? chord.time)
+    this.got.clear()
     this.next++
   }
 }

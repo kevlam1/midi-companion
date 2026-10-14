@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import pkg from '@tonejs/midi'
 import { orderTracksByPitch } from '../src/hands.ts'
-import { EARLY, LearnSession, groupChords } from '../src/learn.ts'
+import { EARLY, EARLY_CHOICES, LearnSession, PRECISE_EARLY, groupChords, parseEarly } from '../src/learn.ts'
 
 const note = (midi, time) => ({ midi, name: '', velocity: 0.8, time, duration: 0.5, track: 0 })
 // Keys that are down: each one pressed at the given song time.
@@ -133,5 +133,97 @@ assert.deepEqual(orderTracksByPitch(highFirst).order, [0, 1]) // already in orde
 // Three tracks: the order lists file track numbers from highest average pitch to lowest.
 const three = [withTrack(40, 0, 0), withTrack(80, 0, 1), withTrack(60, 0, 2)]
 assert.deepEqual(orderTracksByPitch(three).order, [1, 2, 0])
+
+// 14. The early window is a setting. The default is the old 0.1 s, and the preset choices include precise (0).
+assert.equal(EARLY, 0.1)
+assert.deepEqual(EARLY_CHOICES, [0.025, 0.05, 0.1, 0.15, 0.2]) // the first one is "precise"
+assert.equal(PRECISE_EARLY, 0.025)
+assert.equal(new LearnSession().early, EARLY)
+
+// 14b. Precise (0.025 s): a key pressed 40 ms early does not count. 10 ms early, at the chord, or later, it does.
+const one = [{ time: 1, midis: [60] }]
+learn = new LearnSession()
+learn.early = PRECISE_EARLY
+learn.load(one)
+learn.reset(1)
+assert.equal(learn.update(1, down(0.96, 60)).kind, 'wait') // 40 ms early
+learn.reset(1)
+assert.equal(learn.update(1, down(0.99, 60)).kind, 'run') // 10 ms early
+learn.reset(1)
+assert.equal(learn.update(1, down(1, 60)).kind, 'run') // right on the chord
+learn = new LearnSession()
+learn.early = PRECISE_EARLY
+learn.load(one)
+learn.reset(1)
+assert.equal(learn.update(1, none()).kind, 'wait')
+assert.equal(learn.update(1.4, down(1.4, 60)).kind, 'run') // late is fine, the song waited
+
+// 14c. A wider window lets an earlier press count, and a narrower one refuses the same press.
+for (const [early, expected] of [[0.05, 'wait'], [0.1, 'wait'], [0.15, 'run'], [0.2, 'run']]) {
+  learn = new LearnSession()
+  learn.early = early
+  learn.load(one)
+  learn.reset(1)
+  assert.equal(learn.update(1, down(1 - 0.12, 60)).kind, expected, `early ${early}: pressed 0.12 s early`)
+}
+
+// 14d. Reading the saved value: numbers are kept between 0 and 1 and rounded to 0.001, anything else is the default.
+assert.equal(parseEarly('0'), 0)
+assert.equal(parseEarly('0.025'), 0.025)
+assert.equal(parseEarly('0.15'), 0.15)
+assert.equal(parseEarly('0.1234'), 0.123)
+assert.equal(parseEarly('7'), 1)
+assert.equal(parseEarly('-0.3'), 0)
+for (const bad of [null, '', '  ', 'abc', 'NaN', 'Infinity']) assert.equal(parseEarly(bad), EARLY, String(bad))
+
+// 15. One at a time: with a mouse only one key can go down at once. In this mode a chord goes through once each of
+// its notes has been pressed at least once, even if the first key was let go before the second went down.
+const pair = [{ time: 1, midis: [62, 64] }]
+learn = new LearnSession()
+learn.load(pair)
+learn.reset(1)
+assert.equal(learn.update(1, down(1, 62)).kind, 'wait')
+assert.equal(learn.update(1.2, down(1.2, 64)).kind, 'wait') // normal mode: 62 was let go, so it needs both down together
+learn = new LearnSession()
+learn.oneByOne = true
+learn.load(pair)
+learn.reset(1)
+assert.equal(learn.update(1, none()).kind, 'wait')
+assert.equal(learn.update(1, down(1, 62)).kind, 'wait') // one of two
+assert.equal(learn.update(1.1, none()).kind, 'wait') // let go of it: still remembered, still one of two
+assert.deepEqual(learn.update(1.2, none()), { kind: 'wait', time: 1, need: [62, 64] })
+assert.equal(learn.update(1.3, down(1.3, 64)).kind, 'run') // the second one: through
+
+// 15b. A wrong key does not count, and the same key twice is still one key.
+learn = new LearnSession()
+learn.oneByOne = true
+learn.load(pair)
+learn.reset(1)
+assert.equal(learn.update(1, down(1, 60)).kind, 'wait') // wrong key
+assert.equal(learn.update(1.1, down(1.1, 62)).kind, 'wait')
+assert.equal(learn.update(1.2, down(1.2, 62)).kind, 'wait') // 62 again does not stand in for 64
+assert.equal(learn.update(1.3, down(1.3, 64)).kind, 'run')
+
+// 15c. Keys pressed just before the chord arrives (within the early window) count, even if let go before it arrives.
+learn = new LearnSession()
+learn.oneByOne = true
+learn.load(pair)
+learn.reset(0)
+assert.equal(learn.update(0.95, down(0.95, 62)).kind, 'run') // chord not here yet, 62 pressed 50 ms early
+assert.equal(learn.update(0.98, none()).kind, 'run') // 62 let go
+assert.equal(learn.update(1, down(1, 64)).kind, 'run') // chord arrives with 64 down: both done, so the song never stops
+
+// 15d. A press that already counted for one chord does not count for the next, in this mode too.
+const twice = [
+  { time: 1, midis: [60] },
+  { time: 2, midis: [60] },
+]
+learn = new LearnSession()
+learn.oneByOne = true
+learn.load(twice)
+learn.reset(1)
+assert.equal(learn.update(1, down(1, 60)).kind, 'run') // first chord played
+assert.equal(learn.update(2, down(1, 60)).kind, 'wait') // the same press is still held, and can't count again
+assert.equal(learn.update(2, down(2, 60)).kind, 'run') // a fresh press does
 
 console.log('All Learn mode checks passed.')

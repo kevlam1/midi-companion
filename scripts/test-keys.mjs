@@ -2,7 +2,7 @@
 // Run it from the project folder: node scripts/test-keys.mjs
 import assert from 'node:assert/strict'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from '../src/computer-keys.ts'
-import { isBlack } from '../src/keyboard.ts'
+import { isBlack, keyLabel } from '../src/keyboard.ts'
 
 // 1. The bottom row starts at C4 and climbs. The top row starts at C5.
 const bottom = ['KeyZ', 'KeyS', 'KeyX', 'KeyD', 'KeyC', 'KeyV', 'KeyG', 'KeyB', 'KeyH', 'KeyN', 'KeyJ', 'KeyM', 'Comma', 'KeyL', 'Period', 'Semicolon', 'Slash']
@@ -31,5 +31,14 @@ assert.equal(noteForKey('KeyZ', OCTAVE_MIN), 24) // C1 is still on the piano
 assert.equal(noteForKey('KeyP', OCTAVE_MAX), undefined) // 88 + 24 = 112 is above the top key (108)
 assert.equal(noteForKey('KeyU', OCTAVE_MAX), 107) // 83 + 24 is still inside
 assert.equal(noteForKey('KeyZ', OCTAVE_MIN - 1), undefined) // 60 - 48 = 12 is below the lowest key (21)
+
+// The names shown on keys: letters, with the octave on every C (60 is middle C, C4).
+assert.equal(keyLabel(60), 'C4')
+assert.equal(keyLabel(61), 'C#')
+assert.equal(keyLabel(69), 'A')
+assert.equal(keyLabel(21), 'A') // the lowest key
+assert.equal(keyLabel(108), 'C8') // the highest key
+assert.equal(keyLabel(24), 'C1')
+assert.deepEqual([60, 62, 64, 65, 67, 69, 71].map(keyLabel), ['C4', 'D', 'E', 'F', 'G', 'A', 'B'])
 
 console.log('All computer keyboard checks passed.')

@@ -5,139 +5,29 @@ import { Clock } from './clock.ts'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
-import { LearnSession, groupChords } from './learn.ts'
+import { EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
+import { clearHistory, forgetSong, listHistory, rememberSong } from './history.ts'
 import { startMidiInput } from './midi-input.ts'
 import { DEFAULT_VOLUME, Piano } from './piano.ts'
-import { draw, trackColor, type FallingNote } from './renderer.ts'
+import { NOTE_COLORS, findColor, parseSavedColors, rgbOf } from './colors.ts'
+import {
+  PIXELS_PER_SECOND,
+  draw,
+  setHandColors,
+  setKeyGlow,
+  setKeyNames,
+  setRailGlow,
+  trackColor,
+  type FallingNote,
+  type KeyNames,
+  type Trail,
+} from './renderer.ts'
+import { appHtml } from './template.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
 if (app) {
-  app.innerHTML = `
-    <div id="header">
-    <div id="tabs" role="tablist">
-      <button role="tab" data-mode="autoplay" aria-selected="false">Autoplay</button>
-      <button role="tab" data-mode="free" aria-selected="false">Free play</button>
-      <button role="tab" data-mode="learn" aria-selected="false">Learn</button>
-    </div>
-    <div id="toolbar">
-      <h1>MIDI Companion</h1>
-      <div id="now-playing" class="pill" hidden>
-        <span class="pill-tag">NOW PLAYING</span>
-        <span id="song-name"></span>
-      </div>
-      <button id="open-song">Open song</button>
-      <button id="tracks-button" disabled>Tracks</button>
-      <span id="status"></span>
-      <span id="midi"></span>
-      <div id="hands" role="group" aria-label="Hand to practice">
-        <button data-hand="both" aria-pressed="true">Both</button>
-        <button data-hand="right" aria-pressed="false">Right hand</button>
-        <button data-hand="left" aria-pressed="false">Left hand</button>
-      </div>
-      <span id="learn"></span>
-      <span id="octave"></span>
-      <span id="pedal"></span>
-      <span id="fps"></span>
-      <button id="settings-button" aria-haspopup="dialog">Settings</button>
-    </div>
-    </div>
-    <div id="stage-area">
-      <canvas id="stage"></canvas>
-      <div id="controls" role="toolbar" aria-label="Playback controls">
-        <span id="grip" title="Drag to move the controls">⋮⋮</span>
-        <button id="play" disabled>Play</button>
-        <button id="restart" disabled>Restart</button>
-        <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
-        <span id="time"><span id="time-now">0.00</span><span class="time-sep"> / </span><span id="time-total">0.00 s</span></span>
-        <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
-        <div id="volume-group" class="slider">
-          <span>Volume</span>
-          <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
-        </div>
-      </div>
-      <div id="snap-hint" hidden></div>
-      <div id="center-hint" hidden></div>
-      <div id="corner-hint" hidden><svg width="100%" height="100%"><polygon /></svg></div>
-      <div id="welcome">
-        <div class="welcome-card">
-          <h2 class="welcome-title">MIDI Companion <span>·</span> Piano Visualizer</h2>
-          <div id="midi-pill" class="pill" data-detected="false">
-            <span class="dot"></span>
-            <span id="midi-pill-text">Looking for a MIDI device…</span>
-          </div>
-          <div class="welcome-modes">
-            <button data-start="autoplay">Autoplay</button>
-            <button data-start="free">Free play</button>
-            <button data-start="learn">Learn</button>
-          </div>
-          <p class="hint">or drop a .mid file anywhere</p>
-        </div>
-      </div>
-      <div id="drop-overlay">Drop your .mid file to load it</div>
-    </div>
-    <dialog id="song-dialog" class="panel">
-      <div class="dialog-header">
-        <h2>Load a MIDI file</h2>
-        <form method="dialog"><button>Close</button></form>
-      </div>
-      <div id="drop-zone" tabindex="0" role="button">
-        <strong>Drag your .mid file here</strong>
-        <span>or click to browse</span>
-      </div>
-      <p id="song-error"></p>
-      <p class="muted">No file? <button id="sample" class="link">Try the sample song</button></p>
-      <input type="file" id="file" accept=".mid,.midi" hidden />
-    </dialog>
-    <dialog id="mode-dialog" class="panel">
-      <div class="dialog-header">
-        <h2>Open it in</h2>
-        <form method="dialog"><button>Close</button></form>
-      </div>
-      <p id="mode-file" class="muted"></p>
-      <div class="mode-choices">
-        <button data-open="autoplay">Autoplay</button>
-        <button data-open="learn">Learn</button>
-      </div>
-    </dialog>
-    <dialog id="tracks-dialog" class="panel">
-      <div class="dialog-header">
-        <h2>Tracks</h2>
-        <form method="dialog"><button>Close</button></form>
-      </div>
-      <p id="track-summary" class="muted"></p>
-      <div id="track-list"></div>
-    </dialog>
-    <dialog id="settings" class="panel">
-      <div class="dialog-header">
-        <h2>Settings</h2>
-        <form method="dialog"><button>Close</button></form>
-      </div>
-      <p class="muted">Settings are coming soon.</p>
-      <h3>Computer keyboard</h3>
-      <p class="muted">
-        Z S X D C V G B H N J M play C4 to B4 (S D G H J are the black keys). Q 2 W 3 E R 5 T 6 Y 7 U play C5 to B5.
-        The left and right arrow keys move the keys down or up an octave. The space bar is the sustain pedal, and a
-        MIDI sustain pedal works too. The pedal only holds the notes you play, not the song.
-      </p>
-      <h3>Credits</h3>
-      <ul>
-        <li>
-          Piano sound:
-          <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank" rel="noopener">Salamander Grand Piano</a>
-          by Alexander Holm, licensed under
-          <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
-          The recordings are copies of the files hosted by Tone.js, and Tone.js shifts their pitch to fill in the notes between them.
-        </li>
-        <li>
-          Audio:
-          <a href="https://github.com/Tonejs/Tone.js" target="_blank" rel="noopener">Tone.js</a> (MIT).
-          MIDI file parsing:
-          <a href="https://github.com/Tonejs/Midi" target="_blank" rel="noopener">@tonejs/midi</a> (MIT).
-        </li>
-      </ul>
-    </dialog>
-  `
+  app.innerHTML = appHtml
   start(app)
 }
 
@@ -164,11 +54,15 @@ function start(app: HTMLDivElement): void {
   const modeFile = app.querySelector<HTMLParagraphElement>('#mode-file')!
   const midiPill = app.querySelector<HTMLDivElement>('#midi-pill')!
   const midiPillText = app.querySelector<HTMLSpanElement>('#midi-pill-text')!
-  const octaveLabel = app.querySelector<HTMLSpanElement>('#octave')!
+  const octaveLabel = app.querySelector<HTMLParagraphElement>('#octave')!
   const pedalLabel = app.querySelector<HTMLSpanElement>('#pedal')!
   const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
   const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
+  const volumeGroup = app.querySelector<HTMLDivElement>('#volume-group')!
+  const volumePercent = app.querySelector<HTMLInputElement>('#volume-percent')!
+  const muteButton = app.querySelector<HTMLButtonElement>('#mute')!
   volumeSlider.value = String(DEFAULT_VOLUME)
+  volumeSlider.style.setProperty('--progress', `${DEFAULT_VOLUME * 100}%`) // the filled part of the slider
   const nowPlaying = app.querySelector<HTMLDivElement>('#now-playing')!
   const songName = app.querySelector<HTMLSpanElement>('#song-name')!
   const tracksButton = app.querySelector<HTMLButtonElement>('#tracks-button')!
@@ -204,6 +98,27 @@ function start(app: HTMLDivElement): void {
   const enabledTracks = new Set<number>() // the tracks switched on in the Tracks popup
   let notes: FallingNote[] = [] // the notes of the tracks that are switched on
   let duration = 0
+  // A song read from a file, with nothing about how it is being used. The notes, tracks, the name for the pill, and
+  // the text for the status chip.
+  interface Song {
+    label: string
+    rankedNotes: FallingNote[]
+    trackInfo: TrackInfo[]
+    skippedDrums: { name: string; channel: number; count: number }[]
+    duration: number
+    loadedText: string
+  }
+  // How one mode (Autoplay or Learn) is using its song. Each mode has its own, so they don't affect each other.
+  interface ModeSong {
+    song: Song
+    enabled: Set<number> // the tracks switched on in the Tracks popup
+    hand: Hand
+    position: number // where the song was left, in seconds
+  }
+  type SongMode = 'autoplay' | 'learn'
+  const isSongMode = (m: Mode): m is SongMode => m === 'autoplay' || m === 'learn'
+  const modeSongs: Record<SongMode, ModeSong | null> = { autoplay: null, learn: null }
+  let pendingSong: Song | null = null // a file dropped on the welcome screen or in Free play, waiting for a mode
   let keys = new Map<number, Key>()
   let keysWidth = 0
   let dragging = false // true while the seek slider is held, so the loop doesn't fight it
@@ -215,7 +130,7 @@ function start(app: HTMLDivElement): void {
   const held = new Map<number, number>() // pointer id -> the key it is holding
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
   const typedHeld = new Map<string, number>() // computer keys held down (by position, e.g. KeyZ) -> the piano key each plays
-  let octaveShift = 0 // how many octaves the computer keys are moved, with the left and right arrows
+  let octaveShift = 0 // how many octaves the computer keys are moved, with the up and down arrows
   let midiPedal = false // the MIDI keyboard's sustain pedal is down
   let spacePedal = false // the space bar (the computer keyboard's sustain pedal) is down
   let midiStatus = '' // what the MIDI label says normally (the keyboard's name), so a hint can be cleared
@@ -229,6 +144,7 @@ function start(app: HTMLDivElement): void {
   let hand: Hand = 'both' // which hand Learn mode waits for. The other hand plays by itself.
   let soundNotes: FallingNote[] = [] // what the song plays by itself: everything in Autoplay, the other hand in Learn
   const noNotes: FallingNote[] = [] // Free play draws no falling notes
+  let trails: Trail[] = [] // in Free play, the notes I play rise from the keys (see renderer.ts)
   const pressTimes = new Map<number, number>() // key held down -> song time when it was pressed (for Learn mode)
   app.dataset.mode = mode
 
@@ -457,6 +373,7 @@ function start(app: HTMLDivElement): void {
       y: fraction(rect.top - area.top - room.top, room.height),
     }
     barDrag = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top }
+    controls.classList.add('dragging') // while dragging, the bar follows the pointer with no glide
     grip.setPointerCapture(event.pointerId)
     event.preventDefault() // no text selection while dragging
   })
@@ -486,6 +403,7 @@ function start(app: HTMLDivElement): void {
       snapHint.hidden = true
       centerHint.hidden = true
       cornerHint.hidden = true
+      controls.classList.remove('dragging') // before placing it, so it glides into place
       applyOrientation()
       placeBar()
       saveBar()
@@ -502,8 +420,139 @@ function start(app: HTMLDivElement): void {
   applyOrientation()
   placeBar()
 
+  // The "Waiting for" chip (Learn mode). I can drag it anywhere in the falling-notes area. While it is dragged, two
+  // dotted outlines show the two spots it can snap to: under the header, and above the piano, both in the middle.
+  // They are always in the same two places, wherever the chip was picked up from. Let go with the chip over an
+  // outline and it snaps there. Anywhere else, it stays where I let go. Its place is remembered in this browser.
+  const WAIT_KEY = 'midi-companion.waiting'
+  const WAIT_SNAP = 24 // px: the chip's middle can be this far outside an outline and still snap to it
+  const WAIT_INSET = 8 // px from the header, or from the piano, for the top and bottom spots
+  interface WaitPos {
+    dock: 'top' | 'bottom' | null // a spot centered along the top or bottom, or null for a free place (x, y)
+    x: number // 0 to 1 across the free space, for a free place
+    y: number // 0 to 1 down the free space, for a free place
+  }
+  const learnZones = [
+    stageArea.querySelector<HTMLDivElement>('#learn-zone-a')!,
+    stageArea.querySelector<HTMLDivElement>('#learn-zone-b')!,
+  ]
+  let waitPos = loadWaitPos()
+  const WAIT_SPOTS: [WaitPos, WaitPos] = [
+    { dock: 'top', x: 0.5, y: 0 },
+    { dock: 'bottom', x: 0.5, y: 1 },
+  ]
+  let waitDrag: { pointerId: number; dx: number; dy: number; over: number | null } | null = null
+
+  function loadWaitPos(): WaitPos {
+    const fallback: WaitPos = { dock: 'top', x: 0.5, y: 0 } // under the header, in the middle
+    try {
+      const saved = JSON.parse(readSetting(WAIT_KEY) ?? 'null') as { dock?: unknown; x?: unknown; y?: unknown } | null
+      if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+        const dock = saved.dock === 'top' || saved.dock === 'bottom' ? saved.dock : null
+        return { dock, x: fraction(saved.x, 1), y: fraction(saved.y, 1) }
+      }
+    } catch {
+      // nothing saved, or unreadable: use the default
+    }
+    return fallback
+  }
+
+  // Where a chip of this size goes for a place, in px inside the stage area.
+  function waitRect(pos: WaitPos, w: number, h: number): { left: number; top: number; width: number; height: number } {
+    const b = barBounds()
+    const middle = (b.left + b.right - w) / 2
+    if (pos.dock === 'top') return { left: middle, top: b.top + WAIT_INSET, width: w, height: h }
+    if (pos.dock === 'bottom') return { left: middle, top: b.bottom - h - WAIT_INSET, width: w, height: h }
+    return {
+      left: b.left + pos.x * Math.max(0, b.right - b.left - w),
+      top: b.top + pos.y * Math.max(0, b.bottom - b.top - h),
+      width: w,
+      height: h,
+    }
+  }
+
+  function placeLearn(): void {
+    const rect = waitRect(waitPos, learnLabel.offsetWidth, learnLabel.offsetHeight)
+    learnLabel.style.left = `${rect.left}px`
+    learnLabel.style.top = `${rect.top}px`
+  }
+
+  function endWaitDrag(): void {
+    if (!waitDrag) return
+    if (waitDrag.over !== null) waitPos = { ...WAIT_SPOTS[waitDrag.over] } // snap to the outline it is over
+    waitDrag = null
+    learnLabel.classList.remove('dragging')
+    for (const zone of learnZones) {
+      zone.hidden = true
+      zone.classList.remove('active')
+    }
+    placeLearn()
+    writeSetting(WAIT_KEY, JSON.stringify(waitPos))
+  }
+
+  learnLabel.addEventListener('pointerdown', (event) => {
+    const rect = learnLabel.getBoundingClientRect()
+    waitDrag = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top, over: null }
+    learnZones.forEach((zone, i) => {
+      const spot = waitRect(WAIT_SPOTS[i], learnLabel.offsetWidth, learnLabel.offsetHeight)
+      zone.style.left = `${spot.left}px`
+      zone.style.top = `${spot.top}px`
+      zone.style.width = `${spot.width}px`
+      zone.style.height = `${spot.height}px`
+      zone.hidden = false
+    })
+    learnLabel.classList.add('dragging')
+    learnLabel.setPointerCapture(event.pointerId)
+    event.preventDefault() // no text selection while dragging
+  })
+  learnLabel.addEventListener('pointermove', (event) => {
+    if (!waitDrag || event.pointerId !== waitDrag.pointerId) return
+    const area = stageArea.getBoundingClientRect()
+    const b = barBounds()
+    const w = learnLabel.offsetWidth
+    const h = learnLabel.offsetHeight
+    waitPos = {
+      dock: null,
+      x: fraction(event.clientX - area.left - waitDrag.dx - b.left, b.right - b.left - w),
+      y: fraction(event.clientY - area.top - waitDrag.dy - b.top, b.bottom - b.top - h),
+    }
+    placeLearn()
+    // Is the middle of the chip over one of the outlines (give or take WAIT_SNAP)?
+    const mine = waitRect(waitPos, w, h)
+    const cx = mine.left + w / 2
+    const cy = mine.top + h / 2
+    let over: number | null = null
+    let best = Infinity
+    WAIT_SPOTS.forEach((spot, i) => {
+      const r = waitRect(spot, w, h)
+      const inside = cx >= r.left - WAIT_SNAP && cx <= r.left + w + WAIT_SNAP && cy >= r.top - WAIT_SNAP && cy <= r.top + h + WAIT_SNAP
+      const distance = Math.hypot(cx - (r.left + w / 2), cy - (r.top + h / 2))
+      if (inside && distance < best) {
+        best = distance
+        over = i
+      }
+    })
+    waitDrag.over = over
+    learnZones.forEach((zone, i) => zone.classList.toggle('active', i === over))
+  })
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) learnLabel.addEventListener(type, endWaitDrag)
+  new ResizeObserver(placeLearn).observe(learnLabel)
+  new ResizeObserver(placeLearn).observe(stageArea)
+  new ResizeObserver(placeLearn).observe(header)
+  placeLearn()
+
+  // The Play button is an icon button. Its state (data-state) decides which icon shows: the play triangle, the
+  // pause bars, or a spinner while the piano loads. The label is for screen readers and the hover text.
+  type PlayState = 'loading' | 'play' | 'pause'
+  function setPlayState(state: PlayState): void {
+    const label = state === 'loading' ? 'Loading piano…' : state === 'play' ? 'Play' : 'Pause'
+    playButton.dataset.state = state
+    playButton.setAttribute('aria-label', label)
+    playButton.title = label
+  }
+
   // Play stays disabled until a song is loaded and the piano sound has loaded (or failed to).
-  playButton.textContent = 'Loading piano…'
+  setPlayState('loading')
   piano.ready
     .then(() => {
       pianoState = 'ready'
@@ -514,7 +563,7 @@ function start(app: HTMLDivElement): void {
       statusLabel.textContent = "Couldn't load the piano sound. Songs will play without sound."
     })
     .finally(() => {
-      playButton.textContent = clock.playing || learnHolding ? 'Pause' : 'Play' // Learn may have started already
+      setPlayState(clock.playing || learnHolding ? 'pause' : 'play') // Learn may have started already
       playButton.disabled = notes.length === 0
     })
 
@@ -528,6 +577,7 @@ function start(app: HTMLDivElement): void {
     if (songDialog.open) return
     dropZone.classList.remove('over')
     songError.textContent = ''
+    void renderHistory()
     songDialog.showModal()
   }
   openSongButton.addEventListener('click', openSongDialog)
@@ -537,9 +587,13 @@ function start(app: HTMLDivElement): void {
 
   // Loads the file and closes the popup, or keeps it open and says what went wrong.
   async function openFile(file: File): Promise<void> {
-    const error = loadSong(await file.arrayBuffer(), file.name)
+    const data = await file.arrayBuffer()
+    const error = loadSong(data, file.name)
     if (error) songError.textContent = error
-    else songDialog.close()
+    else {
+      songDialog.close()
+      void rememberSong(file.name, data).then(renderHistory)
+    }
   }
 
   fileInput.addEventListener('change', () => {
@@ -583,13 +637,20 @@ function start(app: HTMLDivElement): void {
 
   async function dropFile(file: File): Promise<void> {
     if (songDialog.open) return openFile(file)
-    const error = loadSong(await file.arrayBuffer(), file.name)
-    if (error) {
+    const data = await file.arrayBuffer()
+    const song = parseSong(data, file.name)
+    if (typeof song === 'string') {
       openSongDialog() // show what went wrong, and let me try another file
-      songError.textContent = error
-    } else if (mode === 'welcome' || mode === 'free') {
-      modeFile.textContent = file.name
-      modeDialog.showModal()
+      songError.textContent = song
+    } else {
+      void rememberSong(file.name, data).then(renderHistory)
+      if (isSongMode(mode)) {
+        receiveSong(song) // in Autoplay or Learn it goes straight into that mode
+      } else {
+        pendingSong = song // on the welcome screen or in Free play, I pick the mode first
+        modeFile.textContent = file.name
+        modeDialog.showModal()
+      }
     }
   }
 
@@ -598,16 +659,20 @@ function start(app: HTMLDivElement): void {
     button.addEventListener('click', () => {
       modeDialog.close()
       setMode(button.dataset.open as Mode)
+      if (pendingSong) receiveSong(pendingSong) // the dropped song goes to the mode I picked
+      pendingSong = null
     }),
   )
   modeDialog.addEventListener('click', (event) => {
     if (event.target === modeDialog) modeDialog.close()
   })
+  modeDialog.addEventListener('close', () => {
+    if (!modeDialog.open) window.setTimeout(() => (pendingSong = null), 0) // closed without picking: the file is dropped
+  })
 
-  // Loads a song from MIDI file data, from the popup or the sample. `name` is used in messages, and `label` is the
-  // name shown in the NOW PLAYING pill (the file name unless it is the sample).
-  // Returns an error message if it couldn't load the song, or null if it did.
-  function loadSong(data: ArrayBuffer, name: string, label = name): string | null {
+  // Reads MIDI file data into a Song, without showing it anywhere. `name` is used in messages, and `label` is the name
+  // shown in the NOW PLAYING pill (the file name). Returns an error message if it can't.
+  function parseSong(data: ArrayBuffer, name: string, label = name): Song | string {
     let midi: Midi
     try {
       midi = new Midi(data)
@@ -644,46 +709,120 @@ function start(app: HTMLDivElement): void {
       return message
     }
 
-    clock.pause()
     const ranked = orderTracksByPitch(songNotes) // track 0 is the higher hand, the right hand
-    rankedNotes = ranked.notes
-    trackInfo = ranked.order.map((fileTrack, id) => describeTrack(playable[fileTrack], id))
-    skippedDrums = drums.map((track) => ({
-      name: cleanTrackName(track.name),
-      channel: track.channel + 1,
-      count: track.notes.length,
-    }))
-    enabledTracks.clear()
-    for (const info of trackInfo) enabledTracks.add(info.id) // every track starts switched on
-    notes = rankedNotes
-    renderTrackList()
-    songName.textContent = prettyName(label)
-    nowPlaying.title = label
-    nowPlaying.hidden = false
-    tracksButton.disabled = false
-    duration = midi.duration
-    clock.seek(0)
-    piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
-    hand = 'both'
-    syncHandButtons()
-    app.dataset.hands = String(ranked.trackCount) // the hand picker only shows for a song with two tracks
-    learnHolding = false
-    learnLabel.textContent = ''
-    applyHand()
-
     const skipped: string[] = []
     if (drumTracks > 0) skipped.push(`${drumTracks} drum track${drumTracks > 1 ? 's' : ''}`)
     if (outOfRange > 0) skipped.push(`${outOfRange} note${outOfRange > 1 ? 's' : ''} outside the piano`)
-    const loadedText = `${notes.length} notes` + (skipped.length ? ` (skipped ${skipped.join(', ')})` : '')
-    statusLabel.textContent =
-      pianoState === 'failed' ? `${loadedText}. No piano sound, playing silently.` : loadedText
+    return {
+      label,
+      rankedNotes: ranked.notes,
+      trackInfo: ranked.order.map((fileTrack, id) => describeTrack(playable[fileTrack], id)),
+      skippedDrums: drums.map((track) => ({
+        name: cleanTrackName(track.name),
+        channel: track.channel + 1,
+        count: track.notes.length,
+      })),
+      duration: midi.duration,
+      loadedText: `${songNotes.length} notes` + (skipped.length ? ` (skipped ${skipped.join(', ')})` : ''),
+    }
+  }
 
+  // Autoplay and Learn each keep their own song: its tracks that are switched on, the hand being practiced, and the
+  // place in the song. Two modes can hold the same Song without affecting each other.
+  function freshModeSong(song: Song): ModeSong {
+    return { song, enabled: new Set(song.trackInfo.map((info) => info.id)), hand: 'both', position: 0 }
+  }
+
+  // Writes what is on screen back into the open mode's own song, before leaving that mode.
+  function saveMode(): void {
+    if (!isSongMode(mode)) return
+    const slot = modeSongs[mode]
+    if (!slot) return
+    slot.enabled = new Set(enabledTracks)
+    slot.hand = hand
+    slot.position = clock.time
+  }
+
+  // Shows a mode's own song (or an empty screen if it has none): the notes, the tracks, the name, the controls.
+  function showModeSong(m: SongMode): void {
+    const slot = modeSongs[m]
+    learnHolding = false
+    learnLabel.textContent = ''
+    if (!slot) {
+      rankedNotes = []
+      trackInfo = []
+      skippedDrums = []
+      enabledTracks.clear()
+      notes = []
+      duration = 0
+      hand = 'both'
+      syncHandButtons()
+      app.dataset.hands = '0'
+      renderTrackList()
+      nowPlaying.hidden = true
+      tracksButton.disabled = true
+      playButton.disabled = true
+      restartButton.disabled = true
+      seekSlider.disabled = true
+      seekSlider.max = '0'
+      seekSlider.value = '0'
+      clock.seek(0)
+      statusLabel.textContent = 'Choose a MIDI file to begin.'
+      return
+    }
+    const { song } = slot
+    rankedNotes = song.rankedNotes
+    trackInfo = song.trackInfo
+    skippedDrums = song.skippedDrums
+    enabledTracks.clear()
+    for (const id of slot.enabled) enabledTracks.add(id)
+    notes = rankedNotes.filter((note) => enabledTracks.has(note.track))
+    duration = song.duration
+    hand = slot.hand
+    syncHandButtons()
+    app.dataset.hands = String(enabledTracks.size) // the hand picker only shows with exactly two tracks on
+    renderTrackList()
+    songName.textContent = prettyName(song.label)
+    nowPlaying.title = song.label
+    nowPlaying.hidden = false
+    tracksButton.disabled = false
+    clock.seek(slot.position)
+    statusLabel.textContent =
+      pianoState === 'failed' ? `${song.loadedText}. No piano sound, playing silently.` : song.loadedText
     playButton.disabled = pianoState === 'loading'
     restartButton.disabled = false
     seekSlider.disabled = false
     seekSlider.max = String(duration)
-    if (pianoState !== 'loading') playButton.textContent = 'Play'
+    if (pianoState !== 'loading') setPlayState('play')
+  }
+
+  // Gives a song to the open mode (Autoplay or Learn), from the start with every track on. The other mode keeps
+  // whatever song it has.
+  function receiveSong(song: Song): void {
+    if (!isSongMode(mode)) return
+    pauseSong()
+    modeSongs[mode] = freshModeSong(song)
+    piano.stats = { queued: 0, late: 0, worstLateMs: 0 }
+    showModeSong(mode)
+    applyHand()
     if (mode === 'learn') startSong() // a song loaded in Learn starts running, so I can play right away
+  }
+
+  // Autoplay and Learn keep separate songs. A mode that has none yet gets a fresh copy of the other mode's song, if
+  // the setting allows. After that the two never affect each other.
+  function fillEmptyMode(m: SongMode): void {
+    if (modeSongs[m] || !options.shareSong) return
+    const other = modeSongs[m === 'autoplay' ? 'learn' : 'autoplay']
+    if (other) modeSongs[m] = freshModeSong(other.song)
+  }
+
+  // Loads a song from MIDI file data into the open mode, from the popup or the library.
+  // Returns an error message if it couldn't load the song, or null if it did.
+  function loadSong(data: ArrayBuffer, name: string, label = name): string | null {
+    const song = parseSong(data, name, label)
+    if (typeof song === 'string') return song
+    if (!isSongMode(mode)) setMode('autoplay')
+    receiveSong(song)
     return null
   }
 
@@ -733,12 +872,13 @@ function start(app: HTMLDivElement): void {
       row.className = 'track-row'
       const box = document.createElement('input')
       box.type = 'checkbox'
+      box.className = 'switch'
       box.checked = true
       box.addEventListener('change', () => setTrackEnabled(info.id, box.checked))
       trackBoxes.set(info.id, box)
       const swatch = document.createElement('span')
       swatch.className = 'swatch'
-      swatch.style.background = trackColor(info.id)
+      swatch.style.setProperty('--c', trackColor(info.id)) // the style sheet draws the bar and its glow from this
       const main = document.createElement('span')
       main.className = 'track-main'
       const title = document.createElement('strong')
@@ -804,20 +944,90 @@ function start(app: HTMLDivElement): void {
     if (event.target === tracksDialog) tracksDialog.close()
   })
 
-  // The sample song is a small two-hand exercise I made (public/demo/two-hands.mid), for visitors without a MIDI file.
-  async function loadSample(): Promise<void> {
-    try {
-      const response = await fetch('/demo/two-hands.mid')
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const error = loadSong(await response.arrayBuffer(), 'the sample song', 'Sample song')
-      if (error) songError.textContent = error
-      else songDialog.close()
-    } catch (error) {
-      console.error("Couldn't load the sample song:", error)
-      songError.textContent = "Couldn't load the sample song."
+  // Sample songs: every .mid file in samplesongs/ when the site was built. That folder is kept in the repository, so
+  // every visitor has them. Vite finds the files by itself, so there is no list to keep. They sit behind a
+  // "Sample songs" button in the song popup, and are not added to the history.
+  const samples = Object.entries(
+    import.meta.glob<string>('/samplesongs/*.{mid,midi}', { query: '?url', import: 'default', eager: true }),
+  )
+    .map(([path, url]) => ({ file: path.split('/').pop() ?? path, url }))
+    .sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true }))
+  const samplesBox = app.querySelector<HTMLDivElement>('#samples')!
+  const samplesToggle = app.querySelector<HTMLButtonElement>('#samples-toggle')!
+  const samplesList = app.querySelector<HTMLDivElement>('#samples-list')!
+  samplesBox.hidden = samples.length === 0 // no sample songs: no such section
+  app.querySelector<HTMLElement>('#samples-count')!.textContent = String(samples.length)
+  samplesToggle.addEventListener('click', () => {
+    const open = samplesList.hidden
+    samplesList.hidden = !open
+    samplesToggle.setAttribute('aria-expanded', String(open))
+  })
+  for (const entry of samples) {
+    const button = document.createElement('button')
+    button.className = 'library-item'
+    const title = document.createElement('strong')
+    title.textContent = prettyName(entry.file)
+    button.append(title)
+    button.title = entry.file
+    button.addEventListener('click', async () => {
+      try {
+        const response = await fetch(entry.url)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const error = loadSong(await response.arrayBuffer(), entry.file)
+        if (error) songError.textContent = error
+        else songDialog.close()
+      } catch (error) {
+        console.error(`Couldn't load ${entry.file}:`, error)
+        songError.textContent = `Couldn't load ${prettyName(entry.file)}.`
+      }
+    })
+    samplesList.append(button)
+  }
+
+  // Your songs: the files I opened from my own device, kept in this browser (see history.ts), newest first. Opening
+  // one again moves it to the top. The × on a row forgets that song, and Clear forgets them all.
+  const historyBox = app.querySelector<HTMLDivElement>('#history')!
+  const historyList = app.querySelector<HTMLDivElement>('#history-list')!
+  async function renderHistory(): Promise<void> {
+    const entries = await listHistory()
+    historyBox.hidden = entries.length === 0
+    historyList.replaceChildren()
+    for (const entry of entries) {
+      const row = document.createElement('div')
+      row.className = 'library-row'
+      const open = document.createElement('button')
+      open.className = 'library-item'
+      const title = document.createElement('strong')
+      title.textContent = prettyName(entry.name)
+      open.append(title)
+      open.title = entry.name
+      open.addEventListener('click', () => {
+        const error = loadSong(entry.data, entry.name)
+        if (error) {
+          songError.textContent = error
+          return
+        }
+        songDialog.close()
+        void rememberSong(entry.name, entry.data) // moves it to the top
+      })
+      const remove = document.createElement('button')
+      remove.className = 'library-remove'
+      remove.textContent = '×'
+      remove.setAttribute('aria-label', `Remove ${prettyName(entry.name)} from your songs`)
+      remove.title = 'Remove from your songs'
+      remove.addEventListener('click', async () => {
+        await forgetSong(entry.key)
+        await renderHistory()
+      })
+      row.append(open, remove)
+      historyList.append(row)
     }
   }
-  app.querySelector<HTMLButtonElement>('#sample')!.addEventListener('click', () => void loadSample())
+  app.querySelector<HTMLButtonElement>('#clear-history')!.addEventListener('click', async () => {
+    await clearHistory()
+    await renderHistory()
+  })
+  void renderHistory()
 
   // The welcome screen: just the three mode names. The click on a button is also what turns the audio on.
   app.querySelectorAll<HTMLButtonElement>('#welcome [data-start]').forEach((button) =>
@@ -830,11 +1040,12 @@ function start(app: HTMLDivElement): void {
     return keyAt(keys, event.clientX - rect.left, event.clientY - rect.top, keyboardLayout(canvas.clientHeight))
   }
 
-  // Play the piano with the computer's keyboard (see computer-keys.ts). The left and right arrows move it by an octave.
+  // Play the piano with the computer's keyboard (see computer-keys.ts). The up and down arrows move it by an octave.
   // The first key press also turns the audio on, because a key press is a real user action.
   function showOctave(): void {
-    octaveLabel.textContent = `Computer keys start at C${4 + octaveShift} (← → for octave)`
+    octaveLabel.textContent = `Computer keys start at C${4 + octaveShift} (↑ ↓ for octave)`
   }
+  showOctave() // it lives in Settings, under Computer keyboard, so it is always filled in
   // The sustain pedal is down if either the space bar or the MIDI pedal is. The label shows it, so I can see it register.
   function updatePedal(): void {
     const down = midiPedal || spacePedal
@@ -856,9 +1067,9 @@ function start(app: HTMLDivElement): void {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return // e.g. the seek slider
     if (app.querySelector('dialog[open]')) return // a popup is open
 
-    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
-      event.preventDefault()
-      octaveShift = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, octaveShift + (event.code === 'ArrowRight' ? 1 : -1)))
+    if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+      event.preventDefault() // otherwise the page would scroll
+      octaveShift = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, octaveShift + (event.code === 'ArrowUp' ? 1 : -1)))
       showOctave()
       return
     }
@@ -872,6 +1083,7 @@ function start(app: HTMLDivElement): void {
       return
     }
 
+    if (!options.computerKeys) return // the computer keyboard is switched off in Settings, so its keys aren't notes
     const midi = noteForKey(event.code, octaveShift)
     if (midi === undefined) return // not a piano key, or the octave shift moved it off the 88 keys
     event.preventDefault() // some of these keys (like /) would otherwise open the browser's search
@@ -879,7 +1091,6 @@ function start(app: HTMLDivElement): void {
     if (mode === 'welcome') setMode('free') // playing from the welcome screen goes straight to Free play
     typedHeld.set(event.code, midi)
     noteDown(midi)
-    if (!octaveLabel.textContent) showOctave()
     void startAudio().then(() => {
       if (typedHeld.get(event.code) === midi) piano.press(midi) // unless I already let go
     })
@@ -899,15 +1110,260 @@ function start(app: HTMLDivElement): void {
   })
   window.addEventListener('blur', releaseTyped) // the browser may never send the key-up if the window loses focus
 
-  // Settings panel (a placeholder for now). It holds the credits. Esc, the Close button, or a click on the dim area closes it.
+  // Settings panel: the note colors, the keyboard layout, and the credits. Esc, the Close button, or a click on the
+  // dim area closes it.
   settingsButton.addEventListener('click', () => settingsDialog.showModal())
   settingsDialog.addEventListener('click', (event) => {
     if (event.target === settingsDialog) settingsDialog.close()
   })
 
+  // What Settings remembers lives in this browser's storage. Some browsers refuse it, so a failure is not an error.
+  function readSetting(key: string): string | null {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  }
+  function writeSetting(key: string, value: string | null): void {
+    try {
+      if (value === null) localStorage.removeItem(key)
+      else localStorage.setItem(key, value)
+    } catch {
+      // the browser won't let the page save: the setting is back to its default next visit
+    }
+  }
+
+  // On/off options. All are on unless switched off, and all are remembered in this browser.
+  // waiting: show the "Waiting for" chip in Learn. shareSong: a mode with no song yet gets the other mode's song.
+  // railGlow: the theme-colored glow along the black bar. keyGlow: the light from a lit key (beam, flash and halo).
+  const OPTIONS_KEY = 'midi-companion.options'
+  const options = (() => {
+    try {
+      const saved = JSON.parse(readSetting(OPTIONS_KEY) ?? 'null') as Record<string, unknown> | null
+      return {
+        waiting: saved?.waiting !== false,
+        shareSong: saved?.shareSong !== false,
+        railGlow: saved?.railGlow !== false,
+        keyGlow: saved?.keyGlow !== false,
+        computerKeys: saved?.computerKeys !== false,
+        oneByOne: saved?.oneByOne === true, // off unless switched on
+        keyNames: (['keys', 'notes', 'both'].includes(saved?.keyNames as string) ? saved?.keyNames : 'none') as KeyNames,
+      }
+    } catch {
+      return {
+        waiting: true,
+        shareSong: true,
+        railGlow: true,
+        keyGlow: true,
+        computerKeys: true,
+        oneByOne: false,
+        keyNames: 'none' as KeyNames,
+      }
+    }
+  })()
+
+  // Tells the canvas drawing about the glow options. The bar glow takes the theme's color.
+  function applyRenderOptions(): void {
+    setKeyGlow(options.keyGlow)
+    setKeyNames(options.keyNames)
+    setRailGlow(options.railGlow ? findColor(handChoice.theme)!.main : null)
+  }
+
+  // Note colors and the theme. Each hand picks one color from the fixed list in colors.ts (no custom colors). Both
+  // hands may have the same color, and then "Dim the left hand" can make the left one dimmer. The swap button
+  // trades the two hands' colors. The theme is the color of the glow behind the notes, from the same list.
+  const COLORS_KEY = 'midi-companion.colors'
+  type ColorSlot = 'right' | 'left' | 'theme'
+  let handChoice = parseSavedColors(readSetting(COLORS_KEY))
+  const colorPickers = settingsDialog.querySelectorAll<HTMLDivElement>('.color-picker')
+  const dimLeftBox = settingsDialog.querySelector<HTMLInputElement>('#dim-left')!
+  const glowBox = settingsDialog.querySelector<HTMLInputElement>('#glow-on')!
+
+  function applyColors(): void {
+    setHandColors(
+      findColor(handChoice.right)!,
+      findColor(handChoice.left)!,
+      handChoice.dimLeft && handChoice.left === handChoice.right, // dimming only applies when the colors match
+    )
+    const themeRgb = rgbOf(findColor(handChoice.theme)!.main).join(' ')
+    document.documentElement.style.setProperty('--glow-rgb', themeRgb)
+    document.documentElement.style.setProperty('--theme-rgb', themeRgb) // the buttons on the welcome screen use this, glow on or off
+    // The play button and the sliders use the theme color too. Its icon is dark on a light color and white on a dark one.
+    const [r, g, b] = rgbOf(findColor(handChoice.theme)!.main)
+    document.documentElement.style.setProperty('--theme-ink', (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1b1206' : '#ffffff')
+    document.documentElement.style.setProperty('--glow-on', handChoice.glow ? '1' : '0') // 0 takes the glow's strength to nothing
+    glowBox.checked = handChoice.glow
+    for (const picker of colorPickers) {
+      const slot = picker.dataset.hand as ColorSlot
+      for (const swatch of picker.querySelectorAll<HTMLButtonElement>('.color-swatch')) {
+        swatch.setAttribute('aria-checked', String(swatch.dataset.id === handChoice[slot]))
+        swatch.title = swatch.dataset.name ?? ''
+      }
+    }
+    // The dim switch only matters when both hands have the same color, so it is off-limits otherwise.
+    const sameColor = handChoice.left === handChoice.right
+    dimLeftBox.checked = handChoice.dimLeft
+    dimLeftBox.disabled = !sameColor
+    dimLeftBox.title = sameColor ? '' : 'Only available when both hands have the same color'
+    applyRenderOptions() // the glow along the black bar follows the theme
+    if (trackInfo.length > 0) renderTrackList() // the color bars in the Tracks popup follow
+  }
+  function chooseColor(slot: ColorSlot, id: string): void {
+    handChoice = { ...handChoice, [slot]: id }
+    writeSetting(COLORS_KEY, JSON.stringify(handChoice))
+    applyColors()
+  }
+  for (const picker of colorPickers) {
+    const hand = picker.dataset.hand as ColorSlot
+    const group = picker.querySelector<HTMLDivElement>('.swatches')!
+    for (const color of NOTE_COLORS) {
+      const swatch = document.createElement('button')
+      swatch.className = 'color-swatch'
+      swatch.setAttribute('role', 'radio')
+      swatch.dataset.id = color.id
+      swatch.dataset.name = color.name
+      swatch.style.setProperty('--c', color.main)
+      swatch.style.setProperty('--d', color.dark)
+      swatch.addEventListener('click', () => chooseColor(hand, color.id))
+      group.append(swatch)
+    }
+  }
+  settingsDialog.querySelector<HTMLButtonElement>('#swap-colors')!.addEventListener('click', () => {
+    handChoice = { ...handChoice, right: handChoice.left, left: handChoice.right }
+    writeSetting(COLORS_KEY, JSON.stringify(handChoice))
+    applyColors()
+  })
+  glowBox.addEventListener('change', () => {
+    handChoice = { ...handChoice, glow: glowBox.checked }
+    writeSetting(COLORS_KEY, JSON.stringify(handChoice))
+    applyColors()
+  })
+  dimLeftBox.addEventListener('change', () => {
+    handChoice = { ...handChoice, dimLeft: dimLeftBox.checked }
+    writeSetting(COLORS_KEY, JSON.stringify(handChoice))
+    applyColors()
+  })
+  settingsDialog.querySelector<HTMLButtonElement>('#reset-colors')!.addEventListener('click', () => {
+    writeSetting(COLORS_KEY, null)
+    handChoice = parseSavedColors(null)
+    applyColors()
+  })
+  applyColors()
+
+  // Learn timing: how early a key can be pressed and still count (see learn.ts). Six choices: Precise (0), four
+  // presets, and Custom, which shows a number box. A saved value that isn't one of the presets opens as Custom.
+  const EARLY_KEY = 'midi-companion.early'
+  let earlySeconds = parseEarly(readSetting(EARLY_KEY))
+  let earlyCustom = !EARLY_CHOICES.includes(earlySeconds)
+  const earlyButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#early-choices button')
+  const earlyRow = settingsDialog.querySelector<HTMLDivElement>('#early-custom')!
+  const earlyInput = settingsDialog.querySelector<HTMLInputElement>('#early-input')!
+
+  function applyEarly(): void {
+    learn.early = earlySeconds
+    for (const button of earlyButtons) {
+      const custom = button.dataset.early === 'custom'
+      const on = custom ? earlyCustom : !earlyCustom && Number(button.dataset.early) === earlySeconds
+      button.setAttribute('aria-checked', String(on))
+    }
+    earlyRow.hidden = !earlyCustom
+  }
+  for (const button of earlyButtons) {
+    button.addEventListener('click', () => {
+      if (button.dataset.early === 'custom') {
+        earlyCustom = true
+        earlyInput.value = String(earlySeconds) // start from what is in use now
+      } else {
+        earlyCustom = false
+        earlySeconds = Number(button.dataset.early)
+      }
+      writeSetting(EARLY_KEY, String(earlySeconds))
+      applyEarly()
+      if (earlyCustom) earlyInput.focus()
+    })
+  }
+  earlyInput.addEventListener('input', () => {
+    if (!Number.isFinite(earlyInput.valueAsNumber)) return // empty or half-typed: wait for a number
+    earlySeconds = parseEarly(String(earlyInput.valueAsNumber))
+    writeSetting(EARLY_KEY, String(earlySeconds))
+    applyEarly()
+  })
+  earlyInput.addEventListener('change', () => (earlyInput.value = String(earlySeconds))) // show the value actually in use
+  earlyInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      if (event.key === 'Escape') event.preventDefault() // so Escape only leaves the box, and doesn't close Settings
+      earlyInput.blur()
+    }
+  })
+  earlyInput.value = String(earlySeconds)
+  applyEarly()
+
+  // The on/off options in Settings (defined with the other settings above).
+  const waitingBox = settingsDialog.querySelector<HTMLInputElement>('#show-waiting')!
+  const shareBox = settingsDialog.querySelector<HTMLInputElement>('#share-song')!
+  waitingBox.checked = options.waiting
+  shareBox.checked = options.shareSong
+  const railGlowBox = settingsDialog.querySelector<HTMLInputElement>('#rail-glow')!
+  const keyGlowBox = settingsDialog.querySelector<HTMLInputElement>('#key-glow')!
+  railGlowBox.checked = options.railGlow
+  keyGlowBox.checked = options.keyGlow
+  const computerKeysBox = settingsDialog.querySelector<HTMLInputElement>('#computer-keys')!
+  computerKeysBox.checked = options.computerKeys
+  const oneByOneBox = settingsDialog.querySelector<HTMLInputElement>('#one-by-one')!
+  oneByOneBox.checked = options.oneByOne
+  learn.oneByOne = options.oneByOne
+  oneByOneBox.addEventListener('change', () => {
+    options.oneByOne = oneByOneBox.checked
+    learn.oneByOne = options.oneByOne
+    saveOptions()
+  })
+  const nameButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#key-names button')
+  function showNameChoice(): void {
+    for (const button of nameButtons) button.setAttribute('aria-checked', String(button.dataset.names === options.keyNames))
+  }
+  showNameChoice()
+  for (const button of nameButtons) {
+    button.addEventListener('click', () => {
+      options.keyNames = button.dataset.names as KeyNames
+      showNameChoice()
+      applyRenderOptions()
+      saveOptions()
+    })
+  }
+  computerKeysBox.addEventListener('change', () => {
+    options.computerKeys = computerKeysBox.checked
+    if (!options.computerKeys) releaseTyped() // let go of any computer key that is down right now
+    saveOptions()
+  })
+  function saveOptions(): void {
+    writeSetting(OPTIONS_KEY, JSON.stringify(options))
+  }
+  waitingBox.addEventListener('change', () => {
+    options.waiting = waitingBox.checked
+    if (!options.waiting) learnLabel.textContent = '' // the chip goes away right now
+    saveOptions()
+  })
+  shareBox.addEventListener('change', () => {
+    options.shareSong = shareBox.checked
+    saveOptions()
+  })
+  railGlowBox.addEventListener('change', () => {
+    options.railGlow = railGlowBox.checked
+    applyRenderOptions()
+    saveOptions()
+  })
+  keyGlowBox.addEventListener('change', () => {
+    options.keyGlow = keyGlowBox.checked
+    applyRenderOptions()
+    saveOptions()
+  })
+
   // Remember when each key went down, in song time, so Learn mode can tell a fresh press from a key held for ages.
   function noteDown(midi: number): void {
-    if (!pressTimes.has(midi)) pressTimes.set(midi, clock.time)
+    if (pressTimes.has(midi)) return
+    pressTimes.set(midi, clock.time)
+    if (mode === 'free') trails.push({ midi, start: performance.now() / 1000, end: null })
   }
   function isHeld(midi: number): boolean {
     return midiHeld.has(midi) || [...held.values()].includes(midi) || [...typedHeld.values()].includes(midi)
@@ -976,7 +1432,7 @@ function start(app: HTMLDivElement): void {
     learnHolding = false
     learnLabel.textContent = ''
     piano.reset(soundNotes, clock.time)
-    playButton.textContent = 'Play'
+    setPlayState('play')
   }
 
   // Starts the song from where it is (from the start if it already reached the end).
@@ -984,20 +1440,23 @@ function start(app: HTMLDivElement): void {
     if (clock.time >= duration) clock.seek(0)
     clock.play(lead())
     resync()
-    playButton.textContent = 'Pause'
+    setPlayState('pause')
   }
 
   // Switching tabs pauses the song but does not restart it. I decide when to restart.
   function setMode(next: Mode): void {
     if (next === mode) return
     pauseSong()
+    saveMode() // the mode being left keeps its own song, tracks, hand and place
     mode = next
+    trails = [] // the rising notes belong to Free play only
     app.dataset.mode = mode
     placeBar() // the bar shows different controls in different modes, so its size changes
-    if ((mode === 'autoplay' || mode === 'learn') && notes.length === 0 && !statusLabel.textContent) {
-      statusLabel.textContent = 'Choose a MIDI file to begin.'
-    }
     tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.mode === mode)))
+    if (isSongMode(mode)) {
+      fillEmptyMode(mode) // a mode with no song yet may get the other mode's
+      showModeSong(mode)
+    }
     applyHand() // Learn waits for one hand and plays the other. Autoplay plays everything.
     if (mode === 'learn' && notes.length > 0) startSong() // Learn starts running, so I can play right away
   }
@@ -1047,7 +1506,45 @@ function start(app: HTMLDivElement): void {
     event.preventDefault() // a right-click steps back instead of opening the browser's menu
     stepSpeed(-1)
   })
-  volumeSlider.addEventListener('input', () => piano.setVolume(Number(volumeSlider.value)))
+  // Volume. The slider is the one place the level lives: the sound, the filled part, the percentage and the
+  // speaker icon all follow it. At 0 the icon shows muted, and a click on the icon mutes, or puts the volume back
+  // where it was. The percentage is always shown, and can be typed in directly (0 to 100).
+  let volumeBeforeMute = DEFAULT_VOLUME
+  function applyVolume(): void {
+    const level = Number(volumeSlider.value)
+    piano.setVolume(level)
+    volumeSlider.style.setProperty('--progress', `${level * 100}%`)
+    if (document.activeElement !== volumePercent) volumePercent.value = String(Math.round(level * 100)) // not while typing in it
+    volumeGroup.dataset.muted = String(level === 0)
+    const label = level === 0 ? 'Unmute' : 'Mute'
+    muteButton.setAttribute('aria-label', label)
+    muteButton.title = label
+  }
+  volumeSlider.addEventListener('input', () => {
+    if (Number(volumeSlider.value) > 0) volumeBeforeMute = Number(volumeSlider.value)
+    applyVolume()
+  })
+  volumePercent.addEventListener('input', () => {
+    const percent = volumePercent.valueAsNumber
+    if (!Number.isFinite(percent)) return // empty or half-typed: wait for a number
+    const clamped = Math.min(100, Math.max(0, Math.round(percent)))
+    if (clamped !== percent) volumePercent.value = String(clamped) // typing 250 shows 100 straight away
+    volumeSlider.value = String(clamped / 100)
+    if (Number(volumeSlider.value) > 0) volumeBeforeMute = Number(volumeSlider.value)
+    applyVolume()
+  })
+  volumePercent.addEventListener('change', () => {
+    volumePercent.value = String(Math.round(Number(volumeSlider.value) * 100)) // show the value actually in use
+  })
+  volumePercent.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === 'Escape') volumePercent.blur()
+  })
+  muteButton.addEventListener('click', () => {
+    volumeSlider.value = Number(volumeSlider.value) > 0 ? '0' : String(volumeBeforeMute)
+    applyVolume()
+    muteButton.blur() // hand the keyboard back, so the space bar stays the sustain pedal
+  })
+  applyVolume()
 
   // Once a slider is let go, hand the keyboard back. A focused slider would otherwise swallow the computer keys.
   for (const slider of [seekSlider, volumeSlider]) {
@@ -1134,7 +1631,9 @@ function start(app: HTMLDivElement): void {
           clock.seek(step.time) // snap to the chord so the notes sit exactly on the keys
           learnHolding = true
         }
-        learnLabel.textContent = `Waiting for: ${step.need.map((midi) => Frequency(midi, 'midi').toNote()).join(' ')}`
+        learnLabel.textContent = options.waiting
+          ? `Waiting for: ${step.need.map((midi) => Frequency(midi, 'midi').toNote()).join(' ')}`
+          : ''
       } else {
         learnLabel.textContent = ''
         if (learnHolding) {
@@ -1150,8 +1649,17 @@ function start(app: HTMLDivElement): void {
     if (clock.playing && clock.time >= duration) {
       clock.pause()
       clock.seek(duration)
-      playButton.textContent = 'Play'
+      setPlayState('play')
       logSyncStats()
+    }
+
+    // Free play's rising notes: a note stops growing when its key is let go, and is dropped once it has left the screen.
+    // (Checking here, and not only on key-up, also covers keys the browser never sent a release for.)
+    const wallClock = performance.now() / 1000
+    for (const trail of trails) if (trail.end === null && !isHeld(trail.midi)) trail.end = wallClock
+    // A let-go note is dropped once it has floated off the top of the screen (height / speed seconds after the release).
+    if (trails.length > 0) {
+      trails = trails.filter((trail) => trail.end === null || wallClock - trail.end < height / PIXELS_PER_SECOND)
     }
 
     const time = clock.time
@@ -1164,6 +1672,8 @@ function start(app: HTMLDivElement): void {
       mode === 'free' ? noNotes : notes,
       time,
       new Set([...held.values(), ...midiHeld, ...typedHeld.values()]),
+      mode === 'free' ? trails : [],
+      wallClock,
     )
     timeNow.textContent = time.toFixed(2)
     timeTotal.textContent = `${duration.toFixed(2)} s`

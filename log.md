@@ -504,6 +504,29 @@ I started Friday's plan early.
 **Decisions**
 - Mouse clicks on empty areas don't switch modes. Only a real piano key does.
 
+## 22. Volume, playback speed, and a sustain pedal (2026-10-14)
+
+**What I asked for**
+- I asked Claude if I was missing features. It suggested a volume control, a playback speed, and the sustain pedal. I said yes to all three: speed from 0.25x to 2x, and if the pedal was easy, the space bar as the computer keyboard's pedal.
+- Claude first built speed as a slider. I said it should be a button that cycles, then that a right click should cycle it back, and that it should just show "1x" and explain itself when I hover.
+
+**What changed**
+- Volume: one slider in the toolbar. Everything plays through one master gain, and the slider is squared so the middle is quieter by about 12 dB and not half. Full volume is the same sound as before.
+- Speed: one button that shows the speed (0.25x, 0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x). A click goes to the next speed and a right click to the previous one, wrapping around. The hover text says it is the playback speed. The song keeps its place, pitch stays the same (each note is a fresh piano sample, not stretched audio), and the button is hidden in Free play and on the welcome screen. Changing speed while playing queues the notes again from the current spot, like a seek.
+- `src/clock.ts` now takes its time source as an argument (main.ts passes Tone's `immediate`), so the speed math can be tested with a fake clock.
+- Sustain pedal: the space bar, or a MIDI pedal (controller 64, on at 64 or more, checked against the MIDI control change table on midi.org). A small "Sustain" label shows while it is down. While it is down, keys I let go of keep ringing, and everything is let go when it comes up. A key I am still holding is not cut off. The pedal lets go if the window loses focus. The logic is in `src/sustain.ts`.
+- The sliders let go of keyboard focus after a mouse release. Before, a focused slider would swallow the computer keys, because the key handler ignores keys while an input has focus.
+- Settings lists the space bar as the pedal.
+
+**Decisions**
+- The pedal only holds notes I play by hand. The pedal marks inside a song file are still ignored, as I decided before.
+- Learn's `EARLY` window stays in song seconds, so at 0.5x it is 0.2 s of real time and still the same distance on screen.
+- Space no longer presses a focused button, because it is the pedal now. Enter still works.
+
+**What I checked**
+- `npm run build` passes. `node scripts/test-clock.mjs` (speed math, including changing speed mid-play and during the head start) and `node scripts/test-sustain.mjs` (pedal edge cases) pass, and the older Learn and key tests still pass.
+- Not checked: how any of it sounds or looks in the browser. I told Claude to push before reporting back on it. Not checked: whether my DONNER N25 sends pedal messages at all, since I don't know if it has a pedal jack. The toolbar is also getting crowded, which is for Saturday's control bar.
+
 ---
 
 ## Where AI misread me, or I had to correct course
@@ -522,6 +545,7 @@ I started Friday's plan early.
 - **Notes piled up before the first click:** when I added MIDI playing (section 13), the code still told the piano to play notes while the browser's audio was off. They all sounded at once, loudly, when I clicked. The hint said to click, but Claude hadn't thought through what the pressed notes would do while waiting. I found it by hearing it, and Claude fixed it in section 17.
 - **The other hand got cut off:** Claude's first hand picker silenced the other hand with the same hard fade as Pause whenever Learn stopped to wait, and didn't think about how often that would happen when I'm a beat late. I found it by listening, and Claude changed it in section 18.
 - **Welcome and popup details:** Claude's first welcome screen had far more text than I wanted and opened the file picker for Learn too. It also only opened the song popup from the welcome button and not from the Autoplay tab, and the drop box flickered, because each piece of text inside it counted as leaving the box. I told Claude each time, and it fixed them in section 20.
+- **Speed as a slider:** Claude built the playback speed as a slider with a value button. I wanted a button that cycles through the speeds, and a right click to go back. Claude changed it in section 22. Its first clock test also had an arithmetic mistake (it expected 12 where half speed gives 11), which Claude caught before running it, and Node's built-in TypeScript support couldn't read the shorthand constructor, so it was written out.
 
 **My own mistakes**
 - Nothing yet.

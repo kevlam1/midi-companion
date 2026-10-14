@@ -1,6 +1,7 @@
 import { Frequency, Gain, Sampler, ToneAudioBuffers, getContext, immediate, type ToneAudioBuffer } from 'tone'
 import type { Clock } from './clock.ts'
 import type { FallingNote } from './renderer.ts'
+import { Sustain } from './sustain.ts'
 
 // Salamander Grand Piano by Alexander Holm (CC BY 3.0). These are copies of the recordings Tone.js hosts,
 // kept in public/samples/salamander/ so the piano doesn't depend on another site (vercel.json gives them a long cache time).
@@ -32,6 +33,8 @@ export class Piano {
   private buffers: ToneAudioBuffers // the recordings, downloaded once and shared by every session
   private session: Session | null = null
   private live: Sampler | null = null // for notes played by hand; never thrown away
+  private master = new Gain(1).toDestination() // everything plays through this, so one slider sets the volume
+  private sustain = new Sustain() // the sustain pedal, for notes played by hand
   private next = 0 // index of the next note to queue
   loaded = false
   readonly ready: Promise<void> // rejects if the recordings can't be downloaded
@@ -66,15 +69,24 @@ export class Piano {
     return Math.max(0.05, 3 * base)
   }
 
-  // Called every frame while playing: queues notes that start within the next `lookahead` seconds.
+  // The slider's 0 to 1, squared, because loudness is heard on a curve: the middle of the slider is
+  // a quarter of the full signal (about 12 dB quieter) and not half. Full volume (1) is the original sound.
+  setVolume(level: number): void {
+    this.master.gain.rampTo(level * level, 0.03) // a short ramp, so dragging the slider doesn't crackle
+  }
+
+  // Called every frame while playing: queues notes that start within the next `lookahead` seconds of audio time.
   // Returns how many notes it queued. Without a loaded sound, it only moves past the notes.
   // Notes at or after `until` are left for later (Learn mode uses this so it never queues past a chord it may wait at).
+  // Song times and lengths are scaled by the clock's speed: at half speed, 0.25 s of audio covers 0.125 s of song,
+  // and a note lasts twice as long. Pitch is not changed, because each note is a fresh piano sample, not stretched audio.
   schedule(notes: FallingNote[], clock: Clock, lookahead = LOOKAHEAD, until = Infinity): number {
     const now = clock.time
+    const speed = clock.speed
     let count = 0
-    while (this.next < notes.length && notes[this.next].time < now + lookahead && notes[this.next].time < until) {
+    while (this.next < notes.length && notes[this.next].time < now + lookahead * speed && notes[this.next].time < until) {
       const note = notes[this.next++]
-      if (note.time < now - 0.05) continue // missed (e.g. the frame loop stalled), skip rather than play late
+      if (note.time < now - 0.05 * speed) continue // missed (e.g. the frame loop stalled), skip rather than play late
       if (!this.session) continue
       const due = clock.audioTimeAt(note.time)
       const lateMs = (immediate() - due) * 1000
@@ -82,7 +94,7 @@ export class Piano {
         this.stats.late++
         this.stats.worstLateMs = Math.max(this.stats.worstLateMs, lateMs)
       }
-      this.session.sampler.triggerAttackRelease(note.name, note.duration, Math.max(due, immediate()), note.velocity)
+      this.session.sampler.triggerAttackRelease(note.name, note.duration / speed, Math.max(due, immediate()), note.velocity)
       this.stats.queued++
       count++
     }
@@ -92,13 +104,22 @@ export class Piano {
   // Notes played by hand (mouse now, a MIDI keyboard later). They use their own Sampler that is never
   // thrown away, so pausing or seeking the song doesn't cut off a note you're holding.
   press(midi: number, velocity = 0.8): void {
+    this.sustain.press(midi)
     if (!this.loaded) return
-    if (!this.live) this.live = this.makeSampler().toDestination()
+    if (!this.live) this.live = this.makeSampler().connect(this.master)
     this.live.triggerAttack(Frequency(midi, 'midi').toNote(), immediate(), velocity)
   }
 
+  // With the sustain pedal down, the note keeps ringing until the pedal comes up.
   release(midi: number): void {
-    this.live?.triggerRelease(Frequency(midi, 'midi').toNote(), immediate())
+    if (this.sustain.release(midi)) this.live?.triggerRelease(Frequency(midi, 'midi').toNote(), immediate())
+  }
+
+  // The sustain pedal goes down or up. Coming up lets go of every note it was holding.
+  setSustain(down: boolean): void {
+    for (const midi of this.sustain.setDown(down)) {
+      this.live?.triggerRelease(Frequency(midi, 'midi').toNote(), immediate())
+    }
   }
 
   // Silences everything and starts queuing again from `time`. Call after Play, pause, or seek.
@@ -116,7 +137,7 @@ export class Piano {
   }
 
   private startSession(): Session {
-    const gain = new Gain(1).toDestination()
+    const gain = new Gain(1).connect(this.master)
     const sampler = this.makeSampler().connect(gain)
     return { sampler, gain }
   }

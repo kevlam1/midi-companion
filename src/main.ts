@@ -1,6 +1,6 @@
 import './style.css'
 import { Midi } from '@tonejs/midi'
-import { Frequency, getContext, start as startAudio } from 'tone'
+import { Frequency, getContext, immediate, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
@@ -26,6 +26,11 @@ if (app) {
       <button id="restart" disabled>Restart</button>
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled />
       <span id="time">0.00 / 0.00 s</span>
+      <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
+      <div id="volume-group" class="slider">
+        <span>Volume</span>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
+      </div>
       <span id="status"></span>
       <span id="midi"></span>
       <div id="hands" role="group" aria-label="Hand to practice">
@@ -35,6 +40,7 @@ if (app) {
       </div>
       <span id="learn"></span>
       <span id="octave"></span>
+      <span id="pedal"></span>
       <span id="fps"></span>
       <button id="settings-button" aria-haspopup="dialog">Settings</button>
     </div>
@@ -90,7 +96,8 @@ if (app) {
       <h3>Computer keyboard</h3>
       <p class="muted">
         Z S X D C V G B H N J M play C4 to B4 (S D G H J are the black keys). Q 2 W 3 E R 5 T 6 Y 7 U play C5 to B5.
-        The left and right arrow keys move the keys down or up an octave.
+        The left and right arrow keys move the keys down or up an octave. The space bar is the sustain pedal, and a
+        MIDI sustain pedal works too. The pedal only holds the notes you play, not the song.
       </p>
       <h3>Credits</h3>
       <ul>
@@ -136,10 +143,13 @@ function start(app: HTMLDivElement): void {
   const midiPill = app.querySelector<HTMLDivElement>('#midi-pill')!
   const midiPillText = app.querySelector<HTMLSpanElement>('#midi-pill-text')!
   const octaveLabel = app.querySelector<HTMLSpanElement>('#octave')!
+  const pedalLabel = app.querySelector<HTMLSpanElement>('#pedal')!
+  const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
+  const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
   const canvas = app.querySelector<HTMLCanvasElement>('#stage')!
   const ctx = canvas.getContext('2d')!
 
-  const clock = new Clock()
+  const clock = new Clock(immediate)
   const piano = new Piano()
   let pianoState: 'loading' | 'ready' | 'failed' = 'loading'
   let notes: FallingNote[] = []
@@ -156,6 +166,8 @@ function start(app: HTMLDivElement): void {
   const midiHeld = new Set<number>() // keys held down on the MIDI keyboard
   const typedHeld = new Map<string, number>() // computer keys held down (by position, e.g. KeyZ) -> the piano key each plays
   let octaveShift = 0 // how many octaves the computer keys are moved, with the left and right arrows
+  let midiPedal = false // the MIDI keyboard's sustain pedal is down
+  let spacePedal = false // the space bar (the computer keyboard's sustain pedal) is down
   let midiStatus = '' // what the MIDI label says normally (the keyboard's name), so a hint can be cleared
   type Mode = 'welcome' | 'autoplay' | 'free' | 'learn'
   // Welcome: no mode picked yet (the first screen). Autoplay: the song plays itself. Free play: just the keyboard.
@@ -371,7 +383,15 @@ function start(app: HTMLDivElement): void {
   function showOctave(): void {
     octaveLabel.textContent = `Computer keys start at C${4 + octaveShift} (← → for octave)`
   }
+  // The sustain pedal is down if either the space bar or the MIDI pedal is. The label shows it, so I can see it register.
+  function updatePedal(): void {
+    const down = midiPedal || spacePedal
+    piano.setSustain(down)
+    pedalLabel.textContent = down ? 'Sustain' : ''
+  }
   function releaseTyped(): void {
+    spacePedal = false // lift the pedal first, so the notes below aren't held by it
+    updatePedal()
     const midis = [...typedHeld.values()]
     typedHeld.clear()
     for (const midi of midis) {
@@ -391,6 +411,15 @@ function start(app: HTMLDivElement): void {
       return
     }
 
+    if (event.code === 'Space') {
+      event.preventDefault() // otherwise Space would press a focused button or scroll the page
+      if (!event.repeat) {
+        spacePedal = true
+        updatePedal()
+      }
+      return
+    }
+
     const midi = noteForKey(event.code, octaveShift)
     if (midi === undefined) return // not a piano key, or the octave shift moved it off the 88 keys
     event.preventDefault() // some of these keys (like /) would otherwise open the browser's search
@@ -404,6 +433,12 @@ function start(app: HTMLDivElement): void {
     })
   })
   window.addEventListener('keyup', (event) => {
+    if (event.code === 'Space' && spacePedal) {
+      event.preventDefault() // a button that has focus would otherwise click when Space comes up
+      spacePedal = false
+      updatePedal()
+      return
+    }
     const midi = typedHeld.get(event.code)
     if (midi === undefined) return
     typedHeld.delete(event.code)
@@ -538,6 +573,33 @@ function start(app: HTMLDivElement): void {
     clock.seek(Number(seekSlider.value), clock.playing ? lead() : 0)
     resync()
   })
+
+  // Playback speed: a click on the button goes to the next speed and a right-click to the previous one, wrapping
+  // around at either end. The song keeps its place. Notes already queued were timed for the old speed, so while
+  // playing they are thrown away and queued again from here, the same as a seek does.
+  const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2]
+  let speedIndex = SPEEDS.indexOf(1)
+  function stepSpeed(direction: 1 | -1): void {
+    speedIndex = (speedIndex + direction + SPEEDS.length) % SPEEDS.length
+    const rate = SPEEDS[speedIndex]
+    clock.setSpeed(rate)
+    speedButton.textContent = `${rate}×`
+    if (clock.playing) {
+      piano.reset(soundNotes, clock.time)
+      piano.schedule(soundNotes, clock, undefined, untilWait())
+    }
+  }
+  speedButton.addEventListener('click', () => stepSpeed(1))
+  speedButton.addEventListener('contextmenu', (event) => {
+    event.preventDefault() // a right-click steps back instead of opening the browser's menu
+    stepSpeed(-1)
+  })
+  volumeSlider.addEventListener('input', () => piano.setVolume(Number(volumeSlider.value)))
+
+  // Once a slider is let go, hand the keyboard back. A focused slider would otherwise swallow the computer keys.
+  for (const slider of [seekSlider, volumeSlider]) {
+    slider.addEventListener('pointerup', () => slider.blur())
+  }
 
   playButton.addEventListener('click', async () => {
     if (clock.playing || learnHolding) {
@@ -706,6 +768,11 @@ function start(app: HTMLDivElement): void {
         piano.release(midi)
         noteUp(midi)
       }
+    },
+    sustain: (down) => {
+      if (down !== midiPedal) console.log(`MIDI sustain pedal: ${down ? 'down' : 'up'}`)
+      midiPedal = down
+      updatePedal()
     },
     status: (text, devices = []) => {
       midiStatus = text

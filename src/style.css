@@ -35,7 +35,7 @@ body {
 }
 
 /* Free play has no song, and the welcome screen has no mode yet, so the song controls are hidden. */
-#app:is([data-mode='free'], [data-mode='welcome']) :is(#open-song, #play, #restart, #seek, #time, #status) {
+#app:is([data-mode='free'], [data-mode='welcome']) :is(#open-song, #play, #restart, #seek, #time, #speed, #status) {
   display: none;
 }
 
@@ -114,6 +114,39 @@ body {
 #octave {
   color: #bbb;
   font-size: 0.85rem;
+}
+
+#pedal {
+  color: #ffb870;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Volume: a label and a slider. Speed is one button that shows the current speed and steps to the next. */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
+.slider input[type='range'] {
+  width: 90px;
+  accent-color: #ffb870;
+  cursor: pointer;
+}
+
+#speed {
+  min-width: 3.4rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  background: #1c1c1c;
+  color: #eee;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
 /* Hand picker: only in Learn, and only for a song with two tracks (main.ts sets data-hands on #app). */

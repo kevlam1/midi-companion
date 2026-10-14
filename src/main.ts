@@ -6,7 +6,9 @@ import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
-import { clearHistory, forgetSong, listHistory, rememberSong } from './history.ts'
+import { clearHistory, forgetSong, listHistory, rememberSong, type HistoryEntry } from './history.ts'
+import { buildBeats, clampBpm, formatBpm, metronomeTempo, tempoAt, type Beat, type Tempo } from './tempo.ts'
+import { Metronome, type MetronomeMode } from './metronome.ts'
 import { startMidiInput } from './midi-input.ts'
 import { DEFAULT_VOLUME, Piano } from './piano.ts'
 import { NOTE_COLORS, findColor, parseSavedColors, rgbOf } from './colors.ts'
@@ -57,6 +59,12 @@ function start(app: HTMLDivElement): void {
   const octaveLabel = app.querySelector<HTMLParagraphElement>('#octave')!
   const pedalLabel = app.querySelector<HTMLSpanElement>('#pedal')!
   const speedButton = app.querySelector<HTMLButtonElement>('#speed')!
+  const metronomeButton = app.querySelector<HTMLButtonElement>('#metronome')!
+  const metronomeGroup = app.querySelector<HTMLDivElement>('#metronome-group')!
+  const metronomeBpm = app.querySelector<HTMLInputElement>('#metronome-bpm')!
+  const metronomeAuto = app.querySelector<HTMLButtonElement>('#metronome-auto')!
+  const metronomeModeButton = app.querySelector<HTMLButtonElement>('#metronome-mode')!
+  const bpmLabel = app.querySelector<HTMLSpanElement>('#bpm')!
   const volumeSlider = app.querySelector<HTMLInputElement>('#volume')!
   const volumeGroup = app.querySelector<HTMLDivElement>('#volume-group')!
   const volumePercent = app.querySelector<HTMLInputElement>('#volume-percent')!
@@ -78,6 +86,15 @@ function start(app: HTMLDivElement): void {
 
   const clock = new Clock(immediate)
   const piano = new Piano()
+  const metronome = new Metronome(piano.output) // its clicks go through the volume slider too
+  let currentTempos: Tempo[] = [] // the tempo changes of the song on screen, for the BPM chip
+  let currentPerMeasure = 4 // beats before the metronome's next accent (the song on screen's time signature)
+  let customBpm: number | null = null // the metronome's own tempo, or null to follow the song's tempo
+  let currentBeats: Beat[] = [] // the beats of the song on screen, for the metronome's Song mode
+  let metronomeMode: MetronomeMode = 'free' // what I picked on the dock. Song only counts when there is a song to follow.
+  // How fast the metronome clicks right now: my own tempo, else the song's (at the playback speed), else 100.
+  const clickBpm = (): number =>
+    metronomeTempo(customBpm, tempoAt(currentTempos, clock.time) * clock.speed)
   let pianoState: 'loading' | 'ready' | 'failed' = 'loading'
   // What the Tracks popup shows about each track that has piano notes. A track's id is its place when the tracks are
   // ranked by pitch, highest first (so it is also the number its notes carry).
@@ -107,6 +124,9 @@ function start(app: HTMLDivElement): void {
     skippedDrums: { name: string; channel: number; count: number }[]
     duration: number
     loadedText: string
+    tempos: Tempo[] // the tempo changes in the file (in BPM)
+    beats: Beat[] // every beat, for the metronome's Song mode
+    perMeasure: number // beats before the next accent (the top number of the time signature)
   }
   // How one mode (Autoplay or Learn) is using its song. Each mode has its own, so they don't affect each other.
   interface ModeSong {
@@ -601,6 +621,25 @@ function start(app: HTMLDivElement): void {
     if (file) void openFile(file)
   })
   dropZone.addEventListener('click', () => fileInput.click())
+
+  // The same dashed box on the welcome card: click it to browse for a file. A chosen file is treated like a dropped one,
+  // so it asks which mode to open it in.
+  const welcomeDrop = app.querySelector<HTMLDivElement>('#welcome-drop')!
+  const welcomeFile = app.querySelector<HTMLInputElement>('#welcome-file')!
+  welcomeFile.addEventListener('click', () => {
+    welcomeFile.value = '' // choosing the same file again still counts
+  })
+  welcomeFile.addEventListener('change', () => {
+    const file = welcomeFile.files?.[0]
+    if (file) void dropFile(file)
+  })
+  welcomeDrop.addEventListener('click', () => welcomeFile.click())
+  welcomeDrop.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      welcomeFile.click()
+    }
+  })
   dropZone.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
@@ -723,6 +762,9 @@ function start(app: HTMLDivElement): void {
         count: track.notes.length,
       })),
       duration: midi.duration,
+      tempos: midi.header.tempos.map((tempo) => ({ bpm: tempo.bpm, time: tempo.time ?? 0 })),
+      beats: buildBeats(midi.header, midi.duration),
+      perMeasure: midi.header.timeSignatures[0]?.timeSignature[0] ?? 4,
       loadedText: `${songNotes.length} notes` + (skipped.length ? ` (skipped ${skipped.join(', ')})` : ''),
     }
   }
@@ -755,6 +797,10 @@ function start(app: HTMLDivElement): void {
       enabledTracks.clear()
       notes = []
       duration = 0
+      currentTempos = []
+      currentPerMeasure = 4
+      currentBeats = []
+      metronome.setBeats([])
       hand = 'both'
       syncHandButtons()
       app.dataset.hands = '0'
@@ -778,6 +824,10 @@ function start(app: HTMLDivElement): void {
     for (const id of slot.enabled) enabledTracks.add(id)
     notes = rankedNotes.filter((note) => enabledTracks.has(note.track))
     duration = song.duration
+    currentTempos = song.tempos
+    currentPerMeasure = song.perMeasure
+    currentBeats = song.beats
+    metronome.setBeats(song.beats)
     hand = slot.hand
     syncHandButtons()
     app.dataset.hands = String(enabledTracks.size) // the hand picker only shows with exactly two tracks on
@@ -794,6 +844,7 @@ function start(app: HTMLDivElement): void {
     seekSlider.disabled = false
     seekSlider.max = String(duration)
     if (pianoState !== 'loading') setPlayState('play')
+    refreshMetronome()
   }
 
   // Gives a song to the open mode (Autoplay or Learn), from the start with every track on. The other mode keeps
@@ -990,6 +1041,7 @@ function start(app: HTMLDivElement): void {
   const historyList = app.querySelector<HTMLDivElement>('#history-list')!
   async function renderHistory(): Promise<void> {
     const entries = await listHistory()
+    historyEntries = entries
     historyBox.hidden = entries.length === 0
     historyList.replaceChildren()
     for (const entry of entries) {
@@ -1022,7 +1074,76 @@ function start(app: HTMLDivElement): void {
       row.append(open, remove)
       historyList.append(row)
     }
+    renderWelcomeSongs() // the welcome screen's list follows the history
   }
+
+  // The welcome screen's song list: my past songs and the samples. Picking one asks which mode to open it in, the same
+  // as a file dropped on the welcome screen.
+  const welcomeSongs = app.querySelector<HTMLDivElement>('#welcome-songs')!
+  const welcomeList = app.querySelector<HTMLDivElement>('#welcome-song-list')!
+  const welcomeError = app.querySelector<HTMLParagraphElement>('#welcome-error')!
+  const welcomeTabs = app.querySelectorAll<HTMLButtonElement>('#welcome-songs [data-songs]')
+  let welcomeTab: 'history' | 'samples' = 'history'
+  let historyEntries: HistoryEntry[] = []
+
+  function offerSong(data: ArrayBuffer, name: string, keep: boolean): void {
+    const song = parseSong(data, name)
+    if (typeof song === 'string') {
+      welcomeError.textContent = song
+      return
+    }
+    welcomeError.textContent = ''
+    pendingSong = song
+    modeFile.textContent = name
+    modeDialog.showModal()
+    if (keep) void rememberSong(name, data).then(renderHistory) // opening one again moves it to the top
+  }
+
+  function renderWelcomeSongs(): void {
+    const hasHistory = historyEntries.length > 0
+    const hasSamples = samples.length > 0
+    welcomeSongs.hidden = !hasHistory && !hasSamples
+    if (welcomeTab === 'history' && !hasHistory) welcomeTab = 'samples'
+    if (welcomeTab === 'samples' && !hasSamples) welcomeTab = 'history'
+    for (const tab of welcomeTabs) {
+      const which = tab.dataset.songs
+      tab.hidden = (which === 'history' && !hasHistory) || (which === 'samples' && !hasSamples)
+      tab.setAttribute('aria-checked', String(which === welcomeTab))
+    }
+    welcomeList.replaceChildren()
+    const items =
+      welcomeTab === 'history'
+        ? historyEntries.map((entry) => ({ name: entry.name, open: () => offerSong(entry.data, entry.name, true) }))
+        : samples.map((sample) => ({
+            name: sample.file,
+            open: async () => {
+              try {
+                const response = await fetch(sample.url)
+                if (!response.ok) throw new Error(`HTTP ${response.status}`)
+                offerSong(await response.arrayBuffer(), sample.file, false)
+              } catch (error) {
+                console.error(`Couldn't load ${sample.file}:`, error)
+                welcomeError.textContent = `Couldn't load ${prettyName(sample.file)}.`
+              }
+            },
+          }))
+    for (const item of items) {
+      const button = document.createElement('button')
+      button.className = 'library-item'
+      const title = document.createElement('strong')
+      title.textContent = prettyName(item.name)
+      button.append(title)
+      button.title = item.name
+      button.addEventListener('click', () => void item.open())
+      welcomeList.append(button)
+    }
+  }
+  welcomeTabs.forEach((tab) =>
+    tab.addEventListener('click', () => {
+      welcomeTab = tab.dataset.songs as 'history' | 'samples'
+      renderWelcomeSongs()
+    }),
+  )
   app.querySelector<HTMLButtonElement>('#clear-history')!.addEventListener('click', async () => {
     await clearHistory()
     await renderHistory()
@@ -1189,6 +1310,8 @@ function start(app: HTMLDivElement): void {
     const themeRgb = rgbOf(findColor(handChoice.theme)!.main).join(' ')
     document.documentElement.style.setProperty('--glow-rgb', themeRgb)
     document.documentElement.style.setProperty('--theme-rgb', themeRgb) // the buttons on the welcome screen use this, glow on or off
+    // The whole interface's accent follows the theme: tabs, pills, hover and focus colors, switches, the snap guides.
+    document.documentElement.style.setProperty('--accent-rgb', themeRgb)
     // The play button and the sliders use the theme color too. Its icon is dark on a light color and white on a dark one.
     const [r, g, b] = rgbOf(findColor(handChoice.theme)!.main)
     document.documentElement.style.setProperty('--theme-ink', (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1b1206' : '#ffffff')
@@ -1432,6 +1555,7 @@ function start(app: HTMLDivElement): void {
     learnHolding = false
     learnLabel.textContent = ''
     piano.reset(soundNotes, clock.time)
+    metronome.resync(clock.time)
     setPlayState('play')
   }
 
@@ -1457,6 +1581,7 @@ function start(app: HTMLDivElement): void {
       fillEmptyMode(mode) // a mode with no song yet may get the other mode's
       showModeSong(mode)
     }
+    refreshMetronome() // Song mode can't be used in Free play
     applyHand() // Learn waits for one hand and plays the other. Autoplay plays everything.
     if (mode === 'learn' && notes.length > 0) startSong() // Learn starts running, so I can play right away
   }
@@ -1499,6 +1624,7 @@ function start(app: HTMLDivElement): void {
     if (clock.playing) {
       piano.reset(soundNotes, clock.time)
       piano.schedule(soundNotes, clock, undefined, untilWait())
+      metronome.resync(clock.time)
     }
   }
   speedButton.addEventListener('click', () => stepSpeed(1))
@@ -1520,6 +1646,65 @@ function start(app: HTMLDivElement): void {
     muteButton.setAttribute('aria-label', label)
     muteButton.title = label
   }
+  // The metronome button on the control bar. It starts clicking the moment it is turned on and runs by itself, whether
+  // or not a song is playing, in every mode. Its tempo box shows up while it is on.
+  metronomeButton.addEventListener('click', () => {
+    if (metronome.enabled) metronome.stop()
+    else {
+      void startAudio() // a click is a real user action, so the audio can start here
+      metronome.start(clock.time)
+    }
+    metronomeButton.setAttribute('aria-pressed', String(metronome.enabled))
+    metronomeGroup.dataset.on = String(metronome.enabled)
+    metronomeButton.blur() // hand the keyboard back, so the space bar stays the sustain pedal
+  })
+  // The tempo box (20 to 240 BPM). It shows the song's tempo (at the playback speed), or 100 with no song, until I type
+  // my own, which the metronome then keeps. Auto goes back to the song's tempo.
+  metronomeBpm.addEventListener('input', () => {
+    const typed = metronomeBpm.valueAsNumber
+    if (!Number.isFinite(typed)) return // empty or half-typed: wait for a number
+    customBpm = clampBpm(typed)
+    if (customBpm !== typed) metronomeBpm.value = String(customBpm) // typing 500 shows 240 straight away
+    metronomeGroup.dataset.custom = 'true'
+  })
+  metronomeBpm.addEventListener('change', () => {
+    metronomeBpm.value = formatBpm(clickBpm()) // show the tempo actually in use
+  })
+  metronomeBpm.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === 'Escape') metronomeBpm.blur()
+  })
+  metronomeAuto.addEventListener('click', () => {
+    customBpm = null
+    metronomeGroup.dataset.custom = 'false'
+    metronomeAuto.blur()
+  })
+
+  // Free or Song. Free runs by itself at the tempo in the box. Song follows the song's own beats: it clicks only while
+  // the song plays, stays on the beat when I skip, and the box then just shows the song's tempo. Song needs a song in
+  // Autoplay or Learn, so the choice is greyed out in Free play and with no song loaded.
+  function metronomeEffectiveMode(): MetronomeMode {
+    return metronomeMode === 'song' && isSongMode(mode) && currentBeats.length > 0 ? 'song' : 'free'
+  }
+  function refreshMetronome(): void {
+    const effective = metronomeEffectiveMode()
+    const canSong = isSongMode(mode) && currentBeats.length > 0
+    metronome.setMode(effective, clock.time)
+    metronomeGroup.dataset.mode = effective
+    metronomeBpm.readOnly = effective === 'song' // the song decides the tempo
+    metronomeModeButton.textContent = effective === 'song' ? 'Song' : 'Free'
+    metronomeModeButton.disabled = !canSong
+    metronomeModeButton.title = !canSong
+      ? 'Song mode needs a song in Autoplay or Learn'
+      : effective === 'song'
+        ? "Following the song's beats. Click for a metronome that runs on its own."
+        : "Runs on its own. Click to follow the song's beats instead."
+  }
+  metronomeModeButton.addEventListener('click', () => {
+    metronomeMode = metronomeMode === 'song' ? 'free' : 'song'
+    refreshMetronome()
+    metronomeModeButton.blur()
+  })
+  refreshMetronome()
   volumeSlider.addEventListener('input', () => {
     if (Number(volumeSlider.value) > 0) volumeBeforeMute = Number(volumeSlider.value)
     applyVolume()
@@ -1575,6 +1760,7 @@ function start(app: HTMLDivElement): void {
   function resync(): void {
     learn.reset(clock.time)
     piano.reset(soundNotes, clock.time)
+    metronome.resync(clock.time)
     if (clock.playing) piano.schedule(soundNotes, clock, undefined, untilWait())
   }
 
@@ -1645,6 +1831,7 @@ function start(app: HTMLDivElement): void {
 
     // Queue the other hand's notes, after Learn has decided whether the song stops or carries on.
     const queued = clock.playing ? piano.schedule(soundNotes, clock, undefined, untilWait()) : 0
+    metronome.tick(clock, clickBpm(), currentPerMeasure, untilWait()) // Free mode runs by itself, Song mode follows the song
 
     if (clock.playing && clock.time >= duration) {
       clock.pause()
@@ -1675,6 +1862,18 @@ function start(app: HTMLDivElement): void {
       mode === 'free' ? trails : [],
       wallClock,
     )
+    // The tempo chip in the header: the file's tempo at this point in the song, times the playback speed (what I hear).
+    const fileBpm = tempoAt(currentTempos, time)
+    const bpmText = currentTempos.length > 0 ? `${formatBpm(fileBpm * clock.speed)} BPM` : ''
+    if (bpmLabel.textContent !== bpmText) {
+      bpmLabel.textContent = bpmText
+      bpmLabel.title = bpmText ? `The song is at ${formatBpm(fileBpm)} BPM, played at ${clock.speed}×` : ''
+    }
+    // The metronome's tempo box shows my own tempo, or the song's (at the playback speed) while it follows the song.
+    if (document.activeElement !== metronomeBpm) {
+      const shown = formatBpm(metronomeEffectiveMode() === 'song' ? tempoAt(currentTempos, time) * clock.speed : clickBpm())
+      if (metronomeBpm.value !== shown) metronomeBpm.value = shown
+    }
     timeNow.textContent = time.toFixed(2)
     timeTotal.textContent = `${duration.toFixed(2)} s`
     if (!dragging) seekSlider.value = String(time)

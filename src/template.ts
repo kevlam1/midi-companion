@@ -27,6 +27,7 @@ const icons = {
   sliders:
     svg('<path d="M4 7h2.8M11.2 7H20"/><circle cx="9" cy="7" r="2.2"/><path d="M4 17h8.8M17.2 17H20"/><circle cx="15" cy="17" r="2.2"/>'),
   swap: svg('<path d="M7 4 3.5 7.5 7 11"/><path d="M3.5 7.5H17"/><path d="M17 13l3.5 3.5L17 20"/><path d="M20.5 16.5H7"/>'),
+  metronome: svg('<path d="M9.5 3h5l3.5 18H6z"/><path d="M12 16.5 15.5 8"/>'),
   close: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
   grip:
     '<svg class="icon grip-dots" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
@@ -50,6 +51,7 @@ export const appHtml = `
           <h1>MIDI Companion</h1>
         </div>
         <div id="info">
+          <span id="bpm"></span>
           <span id="status"></span>
           <span id="midi"></span>
           <span id="fps"></span>
@@ -92,6 +94,12 @@ export const appHtml = `
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
       <span id="time"><span id="time-now">0.00</span><span class="time-sep"> / </span><span id="time-total">0.00 s</span></span>
       <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
+      <div id="metronome-group" class="metronome-group" data-on="false" data-custom="false">
+        <button id="metronome" class="icon-btn" aria-pressed="false" aria-label="Metronome" title="Metronome: starts clicking right away, at the tempo in the box">${icons.metronome}</button>
+        <span class="percent bpm-box"><input type="number" id="metronome-bpm" min="20" max="240" step="1" inputmode="numeric" aria-label="Metronome tempo in BPM" title="Metronome tempo, 20 to 240 BPM. It starts at the song's tempo (100 with no song). Type your own, or press Auto to follow the song again." />BPM</span>
+        <button id="metronome-mode" class="mode-chip" title="Free: runs on its own. Song: follows the song's beats.">Free</button>
+        <button id="metronome-auto" class="auto-chip" title="Follow the song's tempo again">Auto</button>
+      </div>
       <div id="volume-group" class="slider" data-muted="false">
         <button id="mute" class="icon-btn" aria-label="Mute" title="Mute">${icons.volume}${icons.volumeOff}</button>
         <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume" />
@@ -119,7 +127,20 @@ export const appHtml = `
           <span class="dot"></span>
           <span id="midi-pill-text">Looking for a MIDI device…</span>
         </div>
-        <p class="hint" style="--i: 3">${icons.upload}<span>or drop a .mid file anywhere</span></p>
+        <div id="welcome-songs" class="welcome-songs" hidden style="--i: 3">
+          <div class="segmented compact" role="radiogroup" aria-label="Songs to play">
+            <button data-songs="history" role="radio" aria-checked="true">Your songs</button>
+            <button data-songs="samples" role="radio" aria-checked="false">Sample songs</button>
+          </div>
+          <div id="welcome-song-list" class="library-list"></div>
+          <p id="welcome-error" class="welcome-error"></p>
+        </div>
+        <div id="welcome-drop" class="drop-box compact" tabindex="0" role="button" style="--i: 4">
+          ${icons.upload}
+          <strong>Drop a .mid file anywhere</strong>
+          <span>or click to browse</span>
+        </div>
+        <input type="file" id="welcome-file" accept=".mid,.midi" hidden />
       </div>
     </div>
     <div id="drop-overlay">
@@ -131,7 +152,7 @@ export const appHtml = `
       <h2>Load a MIDI file</h2>
       <form method="dialog"><button class="icon-btn" aria-label="Close" title="Close">${icons.close}</button></form>
     </div>
-    <div id="drop-zone" tabindex="0" role="button">
+    <div id="drop-zone" class="drop-box" tabindex="0" role="button">
       ${icons.upload}
       <strong>Drag your .mid file here</strong>
       <span>or click to browse</span>

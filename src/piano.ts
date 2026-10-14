@@ -36,6 +36,10 @@ export class Piano {
   private live: Sampler | null = null // for notes played by hand; never thrown away
   // Everything plays through this, so one slider sets the volume. It starts at the slider's starting point (squared, see setVolume).
   private master = new Gain(DEFAULT_VOLUME * DEFAULT_VOLUME).toDestination()
+  // Where sound meant to follow the volume slider can be connected (the metronome's clicks go here).
+  get output(): Gain {
+    return this.master
+  }
   private sustain = new Sustain() // the sustain pedal, for notes played by hand
   private next = 0 // index of the next note to queue
   loaded = false

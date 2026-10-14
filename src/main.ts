@@ -5,31 +5,35 @@ import { Clock } from './clock.ts'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
 import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
-import { EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
+import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
 import { clearHistory, forgetSong, listHistory, rememberSong, type HistoryEntry } from './history.ts'
 import { buildBeats, clampBpm, formatBpm, metronomeTempo, tempoAt, type Beat, type Tempo } from './tempo.ts'
 import { Metronome, type MetronomeMode } from './metronome.ts'
 import { startMidiInput } from './midi-input.ts'
 import { DEFAULT_VOLUME, Piano } from './piano.ts'
-import { NOTE_COLORS, findColor, parseSavedColors, rgbOf } from './colors.ts'
+import { BACKGROUNDS, NOTE_COLORS, THEME_COLORS, findBackground, findColor, parseSavedBackground, parseSavedColors, rgbOf, surfaceRgb } from './colors.ts'
 import {
   PIXELS_PER_SECOND,
   draw,
   setHandColors,
   setKeyGlow,
   setKeyNames,
+  setLightBackground,
   setRailGlow,
+  setSustainGlow,
   trackColor,
   type FallingNote,
   type KeyNames,
   type Trail,
 } from './renderer.ts'
 import { appHtml } from './template.ts'
+import { initTooltips } from './tooltip.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
 if (app) {
   app.innerHTML = appHtml
+  initTooltips()
   start(app)
 }
 
@@ -182,6 +186,7 @@ function start(app: HTMLDivElement): void {
   const CENTER_DISTANCE = 15 // px either side of the middle of an edge within which letting go snaps to the middle
   const CORNER_DISTANCE = 20 // px from both sides of a corner within which letting go snaps into the corner
   let bar = loadBar() // dock is the edge it is snapped to, or null when it is free at x, y
+  let afterBarPlaced: (() => void) | null = null // the Waiting display moves out of the bar's way (set below)
   let barDrag: { pointerId: number; dx: number; dy: number } | null = null
   const snapHint = app.querySelector<HTMLDivElement>('#snap-hint')!
   const centerHint = app.querySelector<HTMLDivElement>('#center-hint')!
@@ -267,6 +272,7 @@ function start(app: HTMLDivElement): void {
     const at = barAt()
     controls.style.left = `${room.left + at.x * room.width}px`
     controls.style.top = `${room.top + at.y * room.height}px`
+    afterBarPlaced?.()
   }
 
   // Close to the middle of an edge, the bar goes exactly to the middle. Otherwise it stays where it is.
@@ -478,11 +484,27 @@ function start(app: HTMLDivElement): void {
   }
 
   // Where a chip of this size goes for a place, in px inside the stage area.
+  // If the control bar (as a row) is in the way of the top or bottom spot, the spot moves just past it: under the bar for the
+  // top spot, above it for the bottom spot. The outlines use the same spots, so they move too. The bar's own left and top
+  // are used, not where it is on screen right now, because it glides into place.
+  function clearOfBar(
+    rect: { left: number; top: number; width: number; height: number },
+    dock: 'top' | 'bottom',
+  ): { left: number; top: number; width: number; height: number } {
+    if (controls.dataset.vertical === 'true' || controls.offsetWidth === 0) return rect
+    const left = parseFloat(controls.style.left) || 0
+    const top = parseFloat(controls.style.top) || 0
+    const overlapsAcross = rect.left < left + controls.offsetWidth + WAIT_INSET && rect.left + rect.width > left - WAIT_INSET
+    const overlapsDown = rect.top < top + controls.offsetHeight + WAIT_INSET && rect.top + rect.height > top - WAIT_INSET
+    if (!overlapsAcross || !overlapsDown) return rect
+    return { ...rect, top: dock === 'top' ? top + controls.offsetHeight + WAIT_INSET : top - rect.height - WAIT_INSET }
+  }
+
   function waitRect(pos: WaitPos, w: number, h: number): { left: number; top: number; width: number; height: number } {
     const b = barBounds()
     const middle = (b.left + b.right - w) / 2
-    if (pos.dock === 'top') return { left: middle, top: b.top + WAIT_INSET, width: w, height: h }
-    if (pos.dock === 'bottom') return { left: middle, top: b.bottom - h - WAIT_INSET, width: w, height: h }
+    if (pos.dock === 'top') return clearOfBar({ left: middle, top: b.top + WAIT_INSET, width: w, height: h }, 'top')
+    if (pos.dock === 'bottom') return clearOfBar({ left: middle, top: b.bottom - h - WAIT_INSET, width: w, height: h }, 'bottom')
     return {
       left: b.left + pos.x * Math.max(0, b.right - b.left - w),
       top: b.top + pos.y * Math.max(0, b.bottom - b.top - h),
@@ -560,6 +582,8 @@ function start(app: HTMLDivElement): void {
   new ResizeObserver(placeLearn).observe(stageArea)
   new ResizeObserver(placeLearn).observe(header)
   placeLearn()
+  afterBarPlaced = placeLearn // whenever the control bar moves, the Waiting display checks it isn't in the way
+  afterBarPlaced()
 
   // The Play button is an icon button. Its state (data-state) decides which icon shows: the play triangle, the
   // pause bars, or a spinner while the piano loads. The label is for screen readers and the hover text.
@@ -970,11 +994,9 @@ function start(app: HTMLDivElement): void {
     for (const [id, box] of trackBoxes) {
       box.checked = enabledTracks.has(id)
       box.disabled = enabledTracks.size === 1 && enabledTracks.has(id) // at least one track has to stay on
-      box.title = box.disabled ? 'At least one track has to stay on.' : ''
+      box.title = box.disabled ? 'At least one track must stay on' : ''
     }
-    trackSummary.textContent =
-      `${enabledTracks.size} of ${trackInfo.length} tracks on. Listed from the highest notes to the lowest. ` +
-      'Turning a track off removes its notes from the falling notes, the sound, and Learn mode.'
+    trackSummary.textContent = `${enabledTracks.size} of ${trackInfo.length} tracks on`
   }
 
   // Switching a track on or off changes which notes the song has, so the hand picker goes back to both hands
@@ -1066,7 +1088,7 @@ function start(app: HTMLDivElement): void {
       remove.className = 'library-remove'
       remove.textContent = '×'
       remove.setAttribute('aria-label', `Remove ${prettyName(entry.name)} from your songs`)
-      remove.title = 'Remove from your songs'
+      remove.title = 'Remove'
       remove.addEventListener('click', async () => {
         await forgetSong(entry.key)
         await renderHistory()
@@ -1171,6 +1193,7 @@ function start(app: HTMLDivElement): void {
   function updatePedal(): void {
     const down = midiPedal || spacePedal
     piano.setSustain(down)
+    setSustainGlow(down && options.sustainGlow) // the glow along the black bar brightens while the pedal is held
     pedalLabel.textContent = down ? 'Sustain' : ''
   }
   function releaseTyped(): void {
@@ -1269,6 +1292,11 @@ function start(app: HTMLDivElement): void {
         keyGlow: saved?.keyGlow !== false,
         computerKeys: saved?.computerKeys !== false,
         oneByOne: saved?.oneByOne === true, // off unless switched on
+        showBpm: saved?.showBpm !== false,
+        showNotes: saved?.showNotes !== false,
+        showMidi: saved?.showMidi !== false,
+        showSustain: saved?.showSustain !== false,
+        sustainGlow: saved?.sustainGlow !== false,
         keyNames: (['keys', 'notes', 'both'].includes(saved?.keyNames as string) ? saved?.keyNames : 'none') as KeyNames,
       }
     } catch {
@@ -1279,6 +1307,11 @@ function start(app: HTMLDivElement): void {
         keyGlow: true,
         computerKeys: true,
         oneByOne: false,
+        showBpm: true,
+        showNotes: true,
+        showMidi: true,
+        showSustain: true,
+        sustainGlow: true,
         keyNames: 'none' as KeyNames,
       }
     }
@@ -1315,6 +1348,8 @@ function start(app: HTMLDivElement): void {
     // The play button and the sliders use the theme color too. Its icon is dark on a light color and white on a dark one.
     const [r, g, b] = rgbOf(findColor(handChoice.theme)!.main)
     document.documentElement.style.setProperty('--theme-ink', (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#1b1206' : '#ffffff')
+    document.documentElement.style.setProperty('--note-right', findColor(handChoice.right)!.main) // the background previews show the hands' colors
+    document.documentElement.style.setProperty('--note-left', findColor(handChoice.left)!.main)
     document.documentElement.style.setProperty('--glow-on', handChoice.glow ? '1' : '0') // 0 takes the glow's strength to nothing
     glowBox.checked = handChoice.glow
     for (const picker of colorPickers) {
@@ -1328,7 +1363,7 @@ function start(app: HTMLDivElement): void {
     const sameColor = handChoice.left === handChoice.right
     dimLeftBox.checked = handChoice.dimLeft
     dimLeftBox.disabled = !sameColor
-    dimLeftBox.title = sameColor ? '' : 'Only available when both hands have the same color'
+    dimLeftBox.title = sameColor ? '' : 'Needs both hands set to the same color'
     applyRenderOptions() // the glow along the black bar follows the theme
     if (trackInfo.length > 0) renderTrackList() // the color bars in the Tracks popup follow
   }
@@ -1340,7 +1375,7 @@ function start(app: HTMLDivElement): void {
   for (const picker of colorPickers) {
     const hand = picker.dataset.hand as ColorSlot
     const group = picker.querySelector<HTMLDivElement>('.swatches')!
-    for (const color of NOTE_COLORS) {
+    for (const color of hand === 'theme' ? THEME_COLORS : NOTE_COLORS) {
       const swatch = document.createElement('button')
       swatch.className = 'color-swatch'
       swatch.setAttribute('role', 'radio')
@@ -1373,6 +1408,52 @@ function start(app: HTMLDivElement): void {
     applyColors()
   })
   applyColors()
+
+  // Background color: the page behind the notes, from the fixed list in colors.ts. It sets the page's background, the
+  // gradient at the top, and the color of the glass header, all through CSS variables.
+  const BG_KEY = 'midi-companion.background'
+  let backgroundId = parseSavedBackground(readSetting(BG_KEY))
+  const bgGroup = settingsDialog.querySelector<HTMLDivElement>('#bg-swatches')!
+  function applyBackground(): void {
+    const background = findBackground(backgroundId)!
+    const root = document.documentElement.style
+    root.setProperty('--bg', background.bg)
+    root.setProperty('--bg-top', background.top)
+    // A light background keeps the interface's dark glass, so its light text stays readable, and the notes get a dark outline.
+    root.setProperty('--surface-rgb', background.light ? '20 20 30' : surfaceRgb(background.bg))
+    root.setProperty('--surface-a1', background.light ? '0.94' : '0.8')
+    root.setProperty('--surface-a2', background.light ? '0.9' : '0.5')
+    document.documentElement.toggleAttribute('data-bg-light', background.light === true)
+    setLightBackground(background.light === true)
+    for (const swatch of bgGroup.querySelectorAll<HTMLButtonElement>('.bg-tile')) {
+      swatch.setAttribute('aria-checked', String(swatch.dataset.id === backgroundId))
+    }
+  }
+  for (const background of BACKGROUNDS) {
+    const swatch = document.createElement('button')
+    swatch.className = 'bg-tile'
+    swatch.setAttribute('role', 'radio')
+    swatch.dataset.id = background.id
+    swatch.dataset.light = String(background.light === true)
+    swatch.style.setProperty('--c', background.top)
+    swatch.style.setProperty('--d', background.bg)
+    // A little preview of the page: the real background, its name, and the two hands' notes on it.
+    const name = document.createElement('span')
+    name.className = 'bg-name'
+    name.textContent = background.name
+    const rightNote = document.createElement('i')
+    rightNote.className = 'bg-note right'
+    const leftNote = document.createElement('i')
+    leftNote.className = 'bg-note left'
+    swatch.append(name, rightNote, leftNote)
+    swatch.addEventListener('click', () => {
+      backgroundId = background.id
+      writeSetting(BG_KEY, background.id)
+      applyBackground()
+    })
+    bgGroup.append(swatch)
+  }
+  applyBackground()
 
   // Learn timing: how early a key can be pressed and still count (see learn.ts). Six choices: Precise (0), four
   // presets, and Custom, which shows a number box. A saved value that isn't one of the presets opens as Custom.
@@ -1454,6 +1535,35 @@ function start(app: HTMLDivElement): void {
       saveOptions()
     })
   }
+  // Header chips I can hide: the tempo, the notes count, the MIDI keyboard, and "Sustain". They only hide the chip. The
+  // MIDI keyboard and the sustain pedal keep working. A switch for the extra glow while the pedal is held, too.
+  // Hiding is done with a class on the page (see style.css), so the text underneath keeps updating.
+  const chipBoxes: [string, 'showBpm' | 'showNotes' | 'showMidi' | 'showSustain', string][] = [
+    ['#show-bpm', 'showBpm', 'hide-bpm'],
+    ['#show-notes', 'showNotes', 'hide-notes'],
+    ['#show-midi', 'showMidi', 'hide-midi'],
+    ['#show-sustain', 'showSustain', 'hide-sustain'],
+  ]
+  function applyChips(): void {
+    for (const [, key, cls] of chipBoxes) app.classList.toggle(cls, !options[key])
+  }
+  for (const [selector, key] of chipBoxes) {
+    const box = settingsDialog.querySelector<HTMLInputElement>(selector)!
+    box.checked = options[key]
+    box.addEventListener('change', () => {
+      options[key] = box.checked
+      applyChips()
+      saveOptions()
+    })
+  }
+  applyChips()
+  const sustainGlowBox = settingsDialog.querySelector<HTMLInputElement>('#sustain-glow')!
+  sustainGlowBox.checked = options.sustainGlow
+  sustainGlowBox.addEventListener('change', () => {
+    options.sustainGlow = sustainGlowBox.checked
+    updatePedal() // takes effect right away if the pedal is down
+    saveOptions()
+  })
   computerKeysBox.addEventListener('change', () => {
     options.computerKeys = computerKeysBox.checked
     if (!options.computerKeys) releaseTyped() // let go of any computer key that is down right now
@@ -1481,6 +1591,116 @@ function start(app: HTMLDivElement): void {
     applyRenderOptions()
     saveOptions()
   })
+
+  // "Hold to reset all settings" at the bottom of Settings. It has to be held for HOLD_MS while a bar fills, so it can't
+  // be set off by accident. Letting go early drains the bar and nothing changes. It resets what the panel holds (colors,
+  // theme, glows, Learn timing, key names and the options). Songs, the volume, and where the control bar and the
+  // Waiting display sit are not touched.
+  const HOLD_MS = 1200
+  const resetButton = settingsDialog.querySelector<HTMLButtonElement>('#reset-all')!
+  const resetLabel = resetButton.querySelector<HTMLSpanElement>('.hold-label')!
+  const resetNote = settingsDialog.querySelector<HTMLParagraphElement>('#reset-all-note')!
+  const RESET_NOTE = resetNote.textContent ?? ''
+  let holdFrame = 0
+  let holdStart = 0
+
+  function resetAllSettings(): void {
+    writeSetting(COLORS_KEY, null)
+    handChoice = parseSavedColors(null)
+    writeSetting(BG_KEY, null)
+    backgroundId = parseSavedBackground(null)
+    applyBackground()
+    writeSetting(EARLY_KEY, null)
+    earlySeconds = EARLY
+    earlyCustom = false
+    earlyInput.value = String(earlySeconds)
+    writeSetting(OPTIONS_KEY, null)
+    Object.assign(options, {
+      waiting: true,
+      shareSong: true,
+      railGlow: true,
+      keyGlow: true,
+      computerKeys: true,
+      oneByOne: false,
+      showBpm: true,
+      showNotes: true,
+      showMidi: true,
+      showSustain: true,
+      sustainGlow: true,
+      keyNames: 'none' as KeyNames,
+    })
+    for (const [selector, key] of chipBoxes) settingsDialog.querySelector<HTMLInputElement>(selector)!.checked = options[key]
+    applyChips()
+    sustainGlowBox.checked = options.sustainGlow
+    updatePedal()
+    waitingBox.checked = options.waiting
+    shareBox.checked = options.shareSong
+    railGlowBox.checked = options.railGlow
+    keyGlowBox.checked = options.keyGlow
+    computerKeysBox.checked = options.computerKeys
+    oneByOneBox.checked = options.oneByOne
+    learn.oneByOne = options.oneByOne
+    showNameChoice()
+    applyEarly()
+    applyColors() // also redraws the glow options and the Tracks colors
+  }
+
+  function setHold(progress: number): void {
+    resetButton.style.setProperty('--hold', String(progress))
+  }
+  function holdStep(now: number): void {
+    const progress = Math.min(1, (now - holdStart) / HOLD_MS)
+    setHold(progress)
+    if (progress < 1) {
+      holdFrame = requestAnimationFrame(holdStep)
+      return
+    }
+    holdFrame = 0
+    resetButton.classList.remove('holding')
+    resetAllSettings()
+    resetButton.classList.add('done')
+    resetLabel.textContent = 'Settings reset'
+    resetNote.textContent = 'Everything above is back to its default.'
+    window.setTimeout(() => {
+      resetButton.classList.remove('done')
+      resetLabel.textContent = 'Hold to reset all settings'
+      resetNote.textContent = RESET_NOTE
+      setHold(0)
+    }, 2200)
+  }
+  function beginHold(): void {
+    if (holdFrame !== 0 || resetButton.classList.contains('done')) return
+    resetButton.classList.add('holding')
+    resetLabel.textContent = 'Keep holding…'
+    holdStart = performance.now()
+    holdFrame = requestAnimationFrame(holdStep)
+  }
+  function cancelHold(): void {
+    if (holdFrame === 0) return
+    cancelAnimationFrame(holdFrame)
+    holdFrame = 0
+    resetButton.classList.remove('holding')
+    resetLabel.textContent = 'Hold to reset all settings'
+    setHold(0) // the bar drains back (a CSS transition)
+  }
+  resetButton.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return
+    beginHold()
+  })
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel']) resetButton.addEventListener(type, cancelHold)
+  resetButton.addEventListener('contextmenu', (event) => event.preventDefault()) // a long press on a phone
+  // From the keyboard: hold Enter. (Space is the sustain pedal, so it isn't used here.)
+  resetButton.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.repeat) {
+      event.preventDefault()
+      beginHold()
+    }
+  })
+  resetButton.addEventListener('keyup', (event) => {
+    if (event.key === 'Enter') cancelHold()
+  })
+  resetButton.addEventListener('blur', cancelHold)
+  settingsDialog.addEventListener('close', cancelHold) // closing Settings mid-hold cancels it
 
   // Remember when each key went down, in song time, so Learn mode can tell a fresh press from a key held for ages.
   function noteDown(midi: number): void {
@@ -1696,8 +1916,8 @@ function start(app: HTMLDivElement): void {
     metronomeModeButton.title = !canSong
       ? 'Song mode needs a song in Autoplay or Learn'
       : effective === 'song'
-        ? "Following the song's beats. Click for a metronome that runs on its own."
-        : "Runs on its own. Click to follow the song's beats instead."
+        ? "Following the song's beats. Click to keep its own time."
+        : "Keeping its own time. Click to follow the song's beats."
   }
   metronomeModeButton.addEventListener('click', () => {
     metronomeMode = metronomeMode === 'song' ? 'free' : 'song'
@@ -1864,10 +2084,10 @@ function start(app: HTMLDivElement): void {
     )
     // The tempo chip in the header: the file's tempo at this point in the song, times the playback speed (what I hear).
     const fileBpm = tempoAt(currentTempos, time)
-    const bpmText = currentTempos.length > 0 ? `${formatBpm(fileBpm * clock.speed)} BPM` : ''
+    const bpmText = currentTempos.length > 0 ?`${formatBpm(fileBpm * clock.speed)} BPM` : ''
     if (bpmLabel.textContent !== bpmText) {
       bpmLabel.textContent = bpmText
-      bpmLabel.title = bpmText ? `The song is at ${formatBpm(fileBpm)} BPM, played at ${clock.speed}×` : ''
+      bpmLabel.title = bpmText ? `Song tempo: ${formatBpm(fileBpm)} BPM, playing at ${clock.speed}×` : ''
     }
     // The metronome's tempo box shows my own tempo, or the song's (at the playback speed) while it follows the song.
     if (document.activeElement !== metronomeBpm) {

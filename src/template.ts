@@ -88,17 +88,17 @@ export const appHtml = `
   <div id="stage-area">
     <canvas id="stage"></canvas>
     <div id="controls" role="toolbar" aria-label="Playback controls">
-      <span id="grip" title="Drag to move the controls">${icons.grip}</span>
-      <button id="restart" class="icon-btn" disabled aria-label="Back to the start" title="Back to the start">${icons.skipBack}</button>
+      <span id="grip" title="Drag to move">${icons.grip}</span>
+      <button id="restart" class="icon-btn" disabled aria-label="Restart" title="Restart">${icons.skipBack}</button>
       <button id="play" class="play-btn" disabled data-state="loading" aria-label="Loading piano" title="Loading piano…">${icons.play}${icons.pause}${icons.spinner}</button>
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
       <span id="time"><span id="time-now">0.00</span><span class="time-sep"> / </span><span id="time-total">0.00 s</span></span>
-      <button id="speed" title="Playback speed. Click for the next speed, right-click for the previous one.">1×</button>
+      <button id="speed" title="Playback speed (right-click to step back)">1×</button>
       <div id="metronome-group" class="metronome-group" data-on="false" data-custom="false">
-        <button id="metronome" class="icon-btn" aria-pressed="false" aria-label="Metronome" title="Metronome: starts clicking right away, at the tempo in the box">${icons.metronome}</button>
-        <span class="percent bpm-box"><input type="number" id="metronome-bpm" min="20" max="240" step="1" inputmode="numeric" aria-label="Metronome tempo in BPM" title="Metronome tempo, 20 to 240 BPM. It starts at the song's tempo (100 with no song). Type your own, or press Auto to follow the song again." />BPM</span>
-        <button id="metronome-mode" class="mode-chip" title="Free: runs on its own. Song: follows the song's beats.">Free</button>
-        <button id="metronome-auto" class="auto-chip" title="Follow the song's tempo again">Auto</button>
+        <button id="metronome" class="icon-btn" aria-pressed="false" aria-label="Metronome" title="Metronome">${icons.metronome}</button>
+        <span class="percent bpm-box"><input type="number" id="metronome-bpm" min="20" max="240" step="1" inputmode="numeric" aria-label="Metronome tempo in BPM" title="Metronome tempo (20 to 240 BPM)" />BPM</span>
+        <button id="metronome-mode" class="mode-chip" title="Metronome mode">Free</button>
+        <button id="metronome-auto" class="auto-chip" title="Back to the song's tempo">Auto</button>
       </div>
       <div id="volume-group" class="slider" data-muted="false">
         <button id="mute" class="icon-btn" aria-label="Mute" title="Mute">${icons.volume}${icons.volumeOff}</button>
@@ -207,7 +207,7 @@ export const appHtml = `
         <div class="swatches" role="radiogroup" aria-label="Left hand color"></div>
       </div>
       <div class="color-divider">
-        <button id="swap-colors" class="icon-btn" aria-label="Swap the left and right hand colors" title="Swap the left and right hand colors">${icons.swap}</button>
+        <button id="swap-colors" class="icon-btn" aria-label="Swap hand colors" title="Swap hand colors">${icons.swap}</button>
       </div>
       <div class="color-picker" data-hand="right">
         <span class="color-label">Right hand</span>
@@ -222,6 +222,10 @@ export const appHtml = `
       <input type="checkbox" id="glow-on" class="switch" />
       <span>Background glow<small>the soft light behind the notes, in the theme color</small></span>
     </label>
+    <div class="bg-picker">
+      <span class="color-label">Background</span>
+      <div id="bg-swatches" class="swatches" role="radiogroup" aria-label="Background color"></div>
+    </div>
     <div class="color-options">
       <label class="option-row">
         <input type="checkbox" id="dim-left" class="switch" />
@@ -254,6 +258,26 @@ export const appHtml = `
       <button data-names="both" role="radio" aria-checked="false">On both</button>
     </div>
     <h3>Options</h3>
+    <label class="option-row">
+      <input type="checkbox" id="show-bpm" class="switch" />
+      <span>Tempo<small>Show the song's BPM in the header</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="show-notes" class="switch" />
+      <span>Note count<small>Show how many notes the song has</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="show-midi" class="switch" />
+      <span>MIDI keyboard<small>Show which MIDI keyboard is connected</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="show-sustain" class="switch" />
+      <span>Sustain label<small>Show a label while the pedal is held</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="sustain-glow" class="switch" />
+      <span>Sustain glow<small>Brighten the glow along the bar while the pedal is held</small></span>
+    </label>
     <label class="option-row">
       <input type="checkbox" id="computer-keys" class="switch" />
       <span>Play with the computer keyboard<small>turn off so the letter and number keys stop playing notes. Space and the arrows still work.</small></span>
@@ -329,6 +353,13 @@ export const appHtml = `
         <a href="https://github.com/Tonejs/Midi" target="_blank" rel="noopener">@tonejs/midi</a> (MIT).
       </li>
     </ul>
+    <div class="reset-all">
+      <button id="reset-all" class="hold-btn" type="button" aria-describedby="reset-all-note">
+        <span class="hold-fill" aria-hidden="true"></span>
+        <span class="hold-label">Hold to reset all settings</span>
+      </button>
+      <p id="reset-all-note" class="muted small" role="status">Puts every setting above back to its default. Your songs are kept.</p>
+    </div>
     </div>
   </dialog>
 `

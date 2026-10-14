@@ -6,6 +6,7 @@ export interface NoteColor {
   name: string
   main: string // notes on white keys
   dark: string // notes on black keys: a darker shade of the main color
+  noTheme?: boolean // too dark to be the interface's accent color on a dark page, so the Theme row leaves it out
 }
 
 // Amber and Sky are the original colors, and the defaults. The other dark shades come from the main color:
@@ -23,7 +24,12 @@ export const NOTE_COLORS: NoteColor[] = [
   { id: 'violet', name: 'Violet', main: '#b794ff', dark: '#7f53da' },
   { id: 'rose', name: 'Rose', main: '#ff7a9c', dark: '#d63d64' },
   { id: 'white', name: 'White', main: '#f4f4f8', dark: '#babacc' },
+  { id: 'charcoal', name: 'Charcoal', main: '#4a4a52', dark: '#2e2e35', noTheme: true },
+  { id: 'black', name: 'Black', main: '#1b1b22', dark: '#0a0a0e', noTheme: true },
 ]
+
+// The colors the Theme row offers (everything but the very dark ones).
+export const THEME_COLORS = NOTE_COLORS.filter((color) => !color.noTheme)
 
 
 export const DEFAULT_RIGHT = 'amber'
@@ -84,11 +90,55 @@ export function parseSavedColors(raw: string | null): ColorChoice {
     return {
       right: right as string,
       left: left as string,
-      theme: findColor(theme) !== undefined ? (theme as string) : DEFAULT_THEME,
+      theme: THEME_COLORS.some((color) => color.id === theme) ? (theme as string) : DEFAULT_THEME,
       dimLeft: dimLeft === true,
       glow: glow !== false, // only an explicit false turns the glow off
     }
   } catch {
     return { ...DEFAULT_CHOICE }
   }
+}
+
+// Background colors: the page behind the notes. A fixed list of dark tones: the original black, a gray-black, and
+// a deep, saturated version of ten of the note colors' families, dark enough for white text and bright notes to read on every one. `bg` is the main color and
+// `top` the slightly lighter one at the top of the gradient.
+export interface Background {
+  id: string
+  name: string
+  bg: string
+  top: string
+  light?: boolean // a light background: the interface keeps dark glass, and the notes get a dark outline
+}
+
+export const BACKGROUNDS: Background[] = [
+  { id: 'black', name: 'Black', bg: '#08080c', top: '#0c0c12' }, // the original
+  { id: 'charcoal', name: 'Charcoal', bg: '#181818', top: '#1e1e1e' },
+  { id: 'crimson', name: 'Crimson', bg: '#411014', top: '#5a161c' },
+  { id: 'rust', name: 'Rust', bg: '#401e11', top: '#592918' },
+  { id: 'amber', name: 'Amber', bg: '#412c10', top: '#5a3d16' },
+  { id: 'olive', name: 'Olive', bg: '#3f3912', top: '#574f19' },
+  { id: 'emerald', name: 'Emerald', bg: '#143d2a', top: '#1c543a' },
+  { id: 'teal', name: 'Teal', bg: '#103e41', top: '#16555a' },
+  { id: 'ocean', name: 'Ocean', bg: '#102a41', top: '#163a5a' },
+  { id: 'cobalt', name: 'Cobalt', bg: '#101c41', top: '#16265a' },
+  { id: 'violet', name: 'Violet', bg: '#27143d', top: '#361c54' },
+  { id: 'plum', name: 'Plum', bg: '#3c1531', top: '#531d43' },
+  { id: 'white', name: 'White', bg: '#e8e8ee', top: '#fafafc', light: true },
+]
+
+export const DEFAULT_BACKGROUND = 'black'
+
+export function findBackground(id: unknown): Background | undefined {
+  return BACKGROUNDS.find((background) => background.id === id)
+}
+
+// Reads the saved background id. Nothing saved, or an id that isn't in the list, gives the default.
+export function parseSavedBackground(raw: string | null): string {
+  return findBackground(raw) !== undefined ? (raw as string) : DEFAULT_BACKGROUND
+}
+
+// The color of glass surfaces (the header) over a background: a little lighter than it, as "r g b" for rgb(var(...) / a).
+export function surfaceRgb(hex: string): string {
+  const [r, g, b] = rgbOf(hex)
+  return [r + 6, g + 6, b + 8].map((v) => Math.min(255, v)).join(' ')
 }

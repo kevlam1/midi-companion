@@ -27,6 +27,8 @@
   --font: 'Plus Jakarta Sans', system-ui, 'Segoe UI', sans-serif;
 
   --bg: #08080c;
+  --bg-top: #0c0c12; /* the lighter top of the background gradient. Settings changes --bg, --bg-top and --surface-rgb (main.ts). */
+  --surface-rgb: 14 14 20; /* the glass header's color */
   --text: #f3f3f7;
   --text-2: #b6b6c4;
   --text-3: #80808f;
@@ -126,7 +128,7 @@ button {
   inset: 0;
   background:
     radial-gradient(32% 24% at 50% 0%, rgb(var(--glow-rgb) / calc(0.15 * var(--glow-on))), transparent 100%),
-    linear-gradient(180deg, #0c0c12 0%, var(--bg) 100%);
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
 }
 
 /* The one centered glow at the top is always there. These softer lights drift behind the welcome screen only,
@@ -166,7 +168,7 @@ button {
   left: 0;
   z-index: 5;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, rgb(14 14 20 / 0.8), rgb(14 14 20 / 0.5));
+  background: linear-gradient(180deg, rgb(var(--surface-rgb) / var(--surface-a1, 0.8)), rgb(var(--surface-rgb) / var(--surface-a2, 0.5)));
   backdrop-filter: var(--glass);
 }
 
@@ -1493,8 +1495,13 @@ button:hover > .mode-icon {
   gap: 0.7rem;
 }
 
-.color-picker.theme {
+.color-picker.theme,
+.bg-picker {
+  display: flex;
+  flex-direction: column;
   align-items: flex-start;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
 }
 
 .color-label {
@@ -1509,7 +1516,8 @@ button:hover > .mode-icon {
   gap: 0.6rem;
 }
 
-.color-picker.theme .swatches {
+.color-picker.theme .swatches,
+.bg-picker .swatches {
   grid-template-columns: repeat(12, 30px);
 }
 
@@ -2322,4 +2330,223 @@ kbd.wide {
 
 #controls[data-vertical='true'] .metronome-group {
   flex-direction: column;
+}
+
+/* "Hold to reset all settings": a bar fills across the button while it is held (main.ts sets --hold from 0 to 1). */
+.reset-all {
+  margin-top: 1.6rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line);
+}
+
+.hold-btn {
+  --hold: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 44px;
+  padding: 0 1rem;
+  overflow: hidden;
+  border: 1px solid rgb(255 138 128 / 0.4);
+  border-radius: 14px;
+  background: rgb(255 138 128 / 0.07);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.2s var(--ease);
+}
+
+.hold-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--hold) * 100%);
+  background: linear-gradient(90deg, rgb(255 138 128 / 0.28), rgb(255 138 128 / 0.5));
+  box-shadow: 4px 0 18px rgb(255 138 128 / 0.55);
+  pointer-events: none;
+}
+
+/* While it is held, the bar follows the hold exactly. When let go early, it drains back smoothly. */
+.hold-btn:not(.holding) .hold-fill {
+  transition: width 0.35s var(--ease);
+}
+
+.hold-btn.holding {
+  border-color: rgb(255 138 128 / 0.8);
+  box-shadow: 0 0 22px rgb(255 138 128 / 0.25);
+  transform: scale(0.985);
+}
+
+.hold-label {
+  position: relative;
+  pointer-events: none;
+}
+
+.hold-btn.done {
+  border-color: rgb(76 197 138 / 0.6);
+  background: rgb(76 197 138 / 0.14);
+  color: var(--ok);
+  cursor: default;
+}
+
+.hold-btn.done .hold-fill {
+  width: 0;
+}
+
+.reset-all .muted {
+  margin: 0.6rem 0 0;
+  text-align: center;
+}
+
+/* Header chips hidden from Settings (main.ts puts these classes on the page). */
+#app.hide-bpm #bpm,
+#app.hide-notes #status,
+#app.hide-midi #midi,
+#app.hide-sustain #pedal {
+  display: none;
+}
+
+/* ---------- Tooltips (tooltip.ts) ---------- */
+/* A popover, so it sits in the top layer above the popups. These reset the browser's popover look. */
+#tooltip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 16px));
+  height: auto;
+  padding: 0.45rem 0.75rem;
+  overflow: visible;
+  border: 1px solid rgb(var(--accent-rgb) / 0.35);
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgb(32 32 45 / 0.96), rgb(16 16 24 / 0.96));
+  backdrop-filter: var(--glass);
+  box-shadow:
+    0 12px 32px rgb(0 0 0 / 0.5),
+    0 0 20px rgb(var(--accent-rgb) / 0.14),
+    inset 0 1px 0 rgb(255 255 255 / 0.07);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: balance;
+  pointer-events: none;
+  opacity: 0;
+  translate: 0 5px;
+  transition:
+    opacity 0.16s ease,
+    translate 0.22s var(--ease);
+}
+
+#tooltip[data-side='below'] {
+  translate: 0 -5px;
+}
+
+#tooltip.visible {
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* The background choices are small previews: the real background, its name, and the two hands' notes on it. */
+.bg-picker {
+  width: 100%;
+}
+
+.bg-picker .swatches {
+  grid-template-columns: repeat(6, 1fr);
+  width: 100%;
+  gap: 0.55rem;
+}
+
+.bg-tile {
+  position: relative;
+  height: 52px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--c), var(--d));
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s ease;
+}
+
+.bg-tile:hover {
+  transform: translateY(-2px);
+}
+
+.bg-tile[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px #15151d,
+    0 0 0 4px rgb(var(--accent-rgb)),
+    0 0 14px rgb(var(--accent-rgb) / 0.5);
+}
+
+.bg-name {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+.bg-tile[data-light='true'] .bg-name {
+  color: #1b1b24;
+  text-shadow: none;
+}
+
+.bg-note {
+  position: absolute;
+  bottom: 6px;
+  width: 7px;
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgb(255 255 255 / 0.25);
+}
+
+.bg-tile[data-light='true'] .bg-note {
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+.bg-note.left {
+  right: 22px;
+  height: 13px;
+  background: var(--note-left);
+}
+
+.bg-note.right {
+  right: 11px;
+  height: 20px;
+  background: var(--note-right);
+}
+
+/* A light background keeps the dark glass, so the light text on it stays readable. */
+html[data-bg-light] #controls,
+html[data-bg-light] .welcome-card,
+html[data-bg-light] #learn,
+html[data-bg-light] #pedal {
+  background: rgb(22 22 32 / 0.94);
+}
+
+/* The Waiting display glides when it steps out of the control bar's way, and follows the pointer exactly while dragged. */
+#learn {
+  transition:
+    left 0.3s var(--ease),
+    top 0.3s var(--ease);
+}
+
+#learn.dragging {
+  transition: none;
 }

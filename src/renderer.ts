@@ -40,6 +40,25 @@ export function setRailGlow(color: string | null): void {
   railGlowColor = color
 }
 
+// While the sustain pedal is held, the glow along the bar grows brighter and taller. `sustainLevel` eases toward 1
+// (held) or 0 (not held) a little each frame, so it fades in and out and doesn't jump.
+let sustainHeld = false
+let sustainLevel = 0
+
+// On a light background, the notes' outline and the faint lines are dark instead of white, so they still show.
+let lightBackground = false
+
+export function setLightBackground(light: boolean): void {
+  lightBackground = light
+}
+
+// "255, 255, 255" or "0, 0, 0": the color of outlines and faint guide lines over the page.
+const lineRgb = (): string => (lightBackground ? '0, 0, 0' : '255, 255, 255')
+
+export function setSustainGlow(held: boolean): void {
+  sustainHeld = held
+}
+
 // Where to write the name of each key (C, C#, D ...): on the keys, on the falling notes, on both, or nowhere.
 export type KeyNames = 'none' | 'keys' | 'notes' | 'both'
 let keyNamesOn: KeyNames = 'none'
@@ -134,7 +153,7 @@ export function draw(
   ctx.clip()
 
   // A faint line at every C, so octaves are easy to find.
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.045)'
+  ctx.fillStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.08 : 0.045})`
   for (const key of keys.values()) {
     if (key.midi % 12 === 0) ctx.fillRect(Math.round(key.x), 0, 1, railTop)
   }
@@ -166,7 +185,7 @@ export function draw(
     ctx.fill()
     ctx.shadowColor = 'transparent'
     ctx.shadowBlur = 0
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)'
+    ctx.strokeStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.4 : 0.28})`
     ctx.lineWidth = 1
     ctx.stroke()
     if ((keyNamesOn === 'notes' || keyNamesOn === 'both') && h >= 15 && w >= 8) {
@@ -197,7 +216,7 @@ export function draw(
     ctx.roundRect(key.x + 1, top, key.width - 2, bottom - top, Math.min(NOTE_RADIUS, (key.width - 2) / 2, (bottom - top) / 2))
     ctx.fillStyle = fade
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)'
+    ctx.strokeStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.4 : 0.28})`
     ctx.lineWidth = 1
     ctx.stroke()
   }
@@ -208,7 +227,7 @@ export function draw(
 
   // The line the notes land on, and the light of each lit key: a beam up the screen and a small flash of light
   // right above the key.
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)'
+  ctx.fillStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.25 : 0.12})`
   ctx.fillRect(0, railTop - 1, width, 1)
   ctx.globalCompositeOperation = 'lighter'
   for (const [midi, track] of keyGlowOn ? lit : []) {
@@ -285,13 +304,16 @@ export function draw(
 
   // The glow along the black bar: a thin bright line on its top edge and a soft light just above it, in the theme's
   // color. Settings can turn it off.
+  sustainLevel += ((sustainHeld ? 1 : 0) - sustainLevel) * 0.18
+  if (Math.abs(sustainLevel - (sustainHeld ? 1 : 0)) < 0.005) sustainLevel = sustainHeld ? 1 : 0
   if (railGlowColor !== null) {
-    const light = ctx.createLinearGradient(0, railTop, 0, railTop - 12)
-    light.addColorStop(0, rgba(railGlowColor, 0.38))
+    const reach = 12 + 30 * sustainLevel // how far up the soft light goes
+    const light = ctx.createLinearGradient(0, railTop, 0, railTop - reach)
+    light.addColorStop(0, rgba(railGlowColor, 0.38 + 0.4 * sustainLevel))
     light.addColorStop(1, rgba(railGlowColor, 0))
     ctx.fillStyle = light
-    ctx.fillRect(0, railTop - 12, width, 12)
+    ctx.fillRect(0, railTop - reach, width, reach)
     ctx.fillStyle = rgba(railGlowColor, 0.9)
-    ctx.fillRect(0, railTop, width, 1)
+    ctx.fillRect(0, railTop - sustainLevel * 2, width, 1 + sustainLevel * 2) // the bright line thickens too
   }
 }

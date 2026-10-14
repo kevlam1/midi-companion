@@ -140,6 +140,12 @@ export function draw(
   trails: Trail[] = [],
   now = 0,
 ): void {
+  // While the window is being resized (opening the browser's inspector does it), the canvas can be a sliver for a moment.
+  // Keys narrower than a few pixels can't be drawn, and a negative width would make the canvas throw, so skip that frame.
+  if (width < 160 || height < 80) {
+    ctx.clearRect(0, 0, width, height)
+    return
+  }
   const { top: keyboardTop, height: keyboardHeight, blackHeight } = keyboardLayout(height)
   const railTop = keyboardTop - RAIL_HEIGHT // where notes land, and the top of the black keys
 
@@ -175,7 +181,7 @@ export function draw(
     const h = bottom - top - 1
     if (h <= 0) continue
     ctx.beginPath()
-    ctx.roundRect(x, top, w, h, Math.min(NOTE_RADIUS, w / 2, h / 2))
+    ctx.roundRect(x, top, w, h, Math.max(0, Math.min(NOTE_RADIUS, w / 2, h / 2)))
     ctx.fillStyle = noteColor(note.track, key.black)
     if (playing && keyGlowOn) {
       // Only the few notes sounding right now get a blurred glow, because a blur on every note would be slow.
@@ -213,7 +219,7 @@ export function draw(
     fade.addColorStop(0, rgba(color, 0.95))
     fade.addColorStop(1, rgba(color, 0.35))
     ctx.beginPath()
-    ctx.roundRect(key.x + 1, top, key.width - 2, bottom - top, Math.min(NOTE_RADIUS, (key.width - 2) / 2, (bottom - top) / 2))
+    ctx.roundRect(key.x + 1, top, key.width - 2, bottom - top, Math.max(0, Math.min(NOTE_RADIUS, (key.width - 2) / 2, (bottom - top) / 2)))
     ctx.fillStyle = fade
     ctx.fill()
     ctx.strokeStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.4 : 0.28})`

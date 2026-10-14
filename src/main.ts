@@ -27,6 +27,7 @@ import {
   type Trail,
 } from './renderer.ts'
 import { appHtml } from './template.ts'
+import { initSmoothScroll } from './smooth-scroll.ts'
 import { initTooltips } from './tooltip.ts'
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -34,6 +35,7 @@ const app = document.querySelector<HTMLDivElement>('#app')
 if (app) {
   app.innerHTML = appHtml
   initTooltips()
+  initSmoothScroll()
   start(app)
 }
 
@@ -1291,7 +1293,7 @@ function start(app: HTMLDivElement): void {
         railGlow: saved?.railGlow !== false,
         keyGlow: saved?.keyGlow !== false,
         computerKeys: saved?.computerKeys !== false,
-        oneByOne: saved?.oneByOne === true, // off unless switched on
+        oneByOne: saved?.oneByOne !== false, // on unless switched off
         showBpm: saved?.showBpm !== false,
         showNotes: saved?.showNotes !== false,
         showMidi: saved?.showMidi !== false,
@@ -1306,7 +1308,7 @@ function start(app: HTMLDivElement): void {
         railGlow: true,
         keyGlow: true,
         computerKeys: true,
-        oneByOne: false,
+        oneByOne: true,
         showBpm: true,
         showNotes: true,
         showMidi: true,
@@ -1621,7 +1623,7 @@ function start(app: HTMLDivElement): void {
       railGlow: true,
       keyGlow: true,
       computerKeys: true,
-      oneByOne: false,
+      oneByOne: true,
       showBpm: true,
       showNotes: true,
       showMidi: true,
@@ -1760,12 +1762,44 @@ function start(app: HTMLDivElement): void {
     pressTimes.clear()
   })
 
-  // Autoplay keeps playing when you switch browser tabs. The browser stops our frame loop in hidden
-  // tabs, so queue every remaining note now. Learn mode pauses instead (see log.md).
+  // Autoplay keeps playing when you switch browser tabs. The browser stops our frame loop in a hidden tab, and slows
+  // ordinary timers to about once a second, so neither can feed the sound. Tone's own timer runs on a Web Worker (its
+  // default clock source), which the browser doesn't slow, so while the tab is hidden that timer takes over: every 0.1 s
+  // it queues the next HIDDEN_LOOKAHEAD seconds of notes and metronome clicks, the same short look-ahead the frame loop uses
+  // when the tab is showing. (It once queued every remaining note of the song at once, which is thousands of audio nodes
+  // in one go, and the audio could jam.) When the tab comes back, nothing is reset unless the browser had stopped the
+  // audio (resetting cuts off the sound that is ringing, which was audible as choppiness). Learn mode pauses instead (see log.md).
+  const HIDDEN_LOOKAHEAD = 1
+  let hiddenTimer = 0
+  function hiddenTick(): void {
+    if (mode === 'autoplay' && clock.playing) piano.schedule(soundNotes, clock, HIDDEN_LOOKAHEAD)
+    metronome.tick(clock, clickBpm(), currentPerMeasure, untilWait(), HIDDEN_LOOKAHEAD)
+  }
+  function stopHiddenTimer(): void {
+    if (hiddenTimer !== 0) getContext().clearInterval(hiddenTimer)
+    hiddenTimer = 0
+  }
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) return
-    if (mode === 'autoplay' && clock.playing) piano.schedule(soundNotes, clock, Infinity)
-    if (mode === 'learn') pauseSong()
+    lastFrameAt = 0 // the time spent hidden isn't a slow frame, so the "Slow frame" check starts over
+    stopHiddenTimer()
+    if (document.hidden) {
+      if (mode === 'learn') pauseSong()
+      if ((mode === 'autoplay' && clock.playing) || metronome.enabled) {
+        hiddenTick()
+        hiddenTimer = getContext().setInterval(hiddenTick, 0.1)
+      }
+      return
+    }
+    // Back on the tab. If the audio kept running, nothing is touched: the notes were queued all along, and the frame loop
+    // carries on from there, so a quick switch away and back is not heard at all. Only if the browser had stopped the
+    // audio is it turned back on and the notes queued again from the song's current place.
+    const state = getContext().rawContext.state
+    console.log(`Tab visible again. Audio is ${state}.`)
+    if (state !== 'running') {
+      void startAudio().then(() => {
+        if (mode === 'autoplay' && clock.playing) resync()
+      })
+    }
   })
 
   // Stops the song where it is and silences it. The position is kept, so Play carries on from here.
@@ -2014,7 +2048,7 @@ function start(app: HTMLDivElement): void {
     }),
   )
 
-  function frame(): void {
+  function renderFrame(): void {
     // Match the canvas to its on-screen size in real pixels so it stays sharp.
     const dpr = window.devicePixelRatio || 1
     const width = canvas.clientWidth
@@ -2118,7 +2152,18 @@ function start(app: HTMLDivElement): void {
       fpsSince = now
     }
 
-    requestAnimationFrame(frame)
+  }
+
+  // One frame that throws (a canvas error while the window is mid-resize, say) must not stop the page for good, so the
+  // next frame is always asked for, and the error is only logged.
+  function frame(): void {
+    try {
+      renderFrame()
+    } catch (error) {
+      console.error('Frame error (the page keeps running):', error)
+    } finally {
+      requestAnimationFrame(frame)
+    }
   }
 
   requestAnimationFrame(frame)

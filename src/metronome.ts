@@ -77,14 +77,14 @@ export class Metronome {
 
   // Called every frame. Free mode queues clicks `60 / bpm` seconds apart, with an accent on the first of every
   // `perMeasure`, and a tempo change takes effect from the next click. Song mode queues the song's beats that fall within
-  // the next LOOKAHEAD seconds of audio, only while the song plays, and not at or after `until` (Learn mode never queues
+  // the next `lookahead` seconds of audio (LOOKAHEAD, or longer while the tab is hidden), only while the song plays, and not at or after `until` (Learn mode never queues
   // past a chord it may wait at).
-  tick(clock: Clock, bpm: number, perMeasure: number, until = Infinity): void {
+  tick(clock: Clock, bpm: number, perMeasure: number, until = Infinity, lookahead = LOOKAHEAD): void {
     if (!this.session) return
     if (this.mode === 'free') {
       const now = immediate()
       if (this.nextAt < now - 0.05) this.nextAt = now // the page stalled: don't fire a burst of missed clicks
-      while (this.nextAt < now + LOOKAHEAD) {
+      while (this.nextAt < now + lookahead) {
         this.click(this.count % perMeasure === 0, Math.max(this.nextAt, now))
         this.count++
         this.nextAt += 60 / bpm
@@ -96,7 +96,7 @@ export class Metronome {
     const speed = clock.speed
     while (this.nextBeat < this.beats.length) {
       const beat = this.beats[this.nextBeat]
-      if (beat.time >= now + LOOKAHEAD * speed || beat.time >= until) break
+      if (beat.time >= now + lookahead * speed || beat.time >= until) break
       this.nextBeat++
       if (beat.time < now - 0.05 * speed) continue // missed (the frame loop stalled): skip it, don't click late
       this.click(beat.accent, Math.max(clock.audioTimeAt(beat.time), immediate()))

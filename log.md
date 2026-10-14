@@ -467,7 +467,7 @@ I started Friday's plan early.
 
 **What changed**
 - The page opens on a small card with three buttons (Autoplay, Free play, Learn), and no tab is selected. The piano below it stays playable.
-- The song popup ("Choose a song") has a dashed box to drag a `.mid` file onto, or click to browse, with Esc, a Close button, or a click outside to close it. If a file can't be read, the popup stays open and says so in red. "No file? Try the sample song" is underneath, and it loads `public/demo/two-hands.mid`. That is a copy of my own `two-hands.mid` test song, so it has no copyright problem, and `make-edge-midis.mjs` keeps the copy in sync.
+- The song popup ("Load a MIDI file", first called "Choose a song") has a dashed box to drag a `.mid` file onto, or click to browse, with Esc, a Close button, or a click outside to close it. If a file can't be read, the popup stays open and says so in red. "No file? Try the sample song" is underneath, and it loads `public/demo/two-hands.mid`. That is a copy of my own `two-hands.mid` test song, so it has no copyright problem, and `make-edge-midis.mjs` keeps the copy in sync.
 - Autoplay with no song loaded opens the popup from the welcome card, from the Autoplay tab, and from clicking the open tab again. Learn and Free play never open it by themselves.
 - The browser's plain "Choose file" control in the toolbar is now an "Open song" button that opens the same popup. A file dropped anywhere else on the page is ignored, so the browser doesn't open it and leave the app.
 - Claude took only the idea from the midee screenshot. The wording, layout and colors are its own, and there is no icon, because midee has no license.

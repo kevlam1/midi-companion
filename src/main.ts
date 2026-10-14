@@ -48,7 +48,7 @@ if (app) {
     </div>
     <dialog id="song-dialog" class="panel">
       <div class="dialog-header">
-        <h2>Choose a song</h2>
+        <h2>Load a MIDI file</h2>
         <form method="dialog"><button>Close</button></form>
       </div>
       <div id="drop-zone" tabindex="0" role="button">

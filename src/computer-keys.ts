@@ -45,6 +45,21 @@ const KEY_NOTES: Partial<Record<string, number>> = {
 export const OCTAVE_MIN = -3
 export const OCTAVE_MAX = 2
 
+// What is printed on a key position of a US keyboard: KeyZ -> "Z", Digit2 -> "2", Comma -> ",".
+const PUNCTUATION: Record<string, string> = { Comma: ',', Period: '.', Semicolon: ';', Slash: '/' }
+function capOf(code: string): string {
+  return PUNCTUATION[code] ?? code.replace(/^(Key|Digit)/, '')
+}
+
+// The computer key that plays this piano key (as the text on a US keyboard), or undefined if none does. C5 to E5 can
+// be played from both rows, and the top row (Q, 2, W, 3, E) is the one named, because it is listed last above.
+// Follows the octave shift, the same as noteForKey, so the names move when the arrow keys do.
+export function keyCapForNote(midi: number, octave: number): string | undefined {
+  let found: string | undefined
+  for (const code of Object.keys(KEY_NOTES)) if (noteForKey(code, octave) === midi) found = code
+  return found === undefined ? undefined : capOf(found)
+}
+
 // The piano key (MIDI number) a computer key plays, or undefined if it isn't a piano key or the shift pushes it off the 88 keys.
 export function noteForKey(code: string, octave: number): number | undefined {
   const base = KEY_NOTES[code]

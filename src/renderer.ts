@@ -1,5 +1,6 @@
 import { DEFAULT_LEFT, DEFAULT_RIGHT, dimmed, findColor, rgbOf, type NoteColor } from './colors.ts'
 import { keyboardLayout, keyLabel, type Key } from './keyboard.ts'
+import { keyCapForNote } from './computer-keys.ts'
 
 export interface FallingNote {
   midi: number
@@ -59,14 +60,34 @@ export function setSustainGlow(held: boolean): void {
   sustainHeld = held
 }
 
+// How many keys were lit in the last frame (a song's notes sounding, and keys held by hand). The glow behind the notes
+// follows it, so it swells with the music.
+let litKeys = 0
+export function litKeyCount(): number {
+  return litKeys
+}
+
 // Where to write the name of each key (C, C#, D ...): on the keys, on the falling notes, on both, or nowhere.
 export type KeyNames = 'none' | 'keys' | 'notes' | 'both'
 let keyNamesOn: KeyNames = 'none'
 let keyNamesOnlyC = false // names on the keys: only the C keys (C1, C2, C3 ...) get one
 
-export function setKeyNames(where: KeyNames, onlyC = false): void {
+let keyNamesComputer = false // write the computer key that plays each piano key instead of the note's name
+let computerOctave = 0 // the computer keys' octave shift, so those names follow the arrow keys
+
+export function setKeyNames(where: KeyNames, onlyC = false, computer = false): void {
   keyNamesOn = where
   keyNamesOnlyC = onlyC
+  keyNamesComputer = computer
+}
+
+export function setComputerOctave(octave: number): void {
+  computerOctave = octave
+}
+
+// The text for a piano key: its note name, or the computer key that plays it (nothing if none does).
+function nameOf(midi: number): string | undefined {
+  return keyNamesComputer ? keyCapForNote(midi, computerOctave) : keyLabel(midi)
 }
 
 // The text size for a name on a key or note of this width, in px.
@@ -196,13 +217,14 @@ export function draw(
     ctx.strokeStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.4 : 0.28})`
     ctx.lineWidth = 1
     ctx.stroke()
-    if ((keyNamesOn === 'notes' || keyNamesOn === 'both') && h >= 15 && w >= 8) {
+    const noteName = keyNamesOn === 'notes' || keyNamesOn === 'both' ? nameOf(note.midi) : undefined
+    if (noteName !== undefined && h >= 15 && w >= 8) {
       // The name sits at the bottom of the note, the end that reaches the key first.
       ctx.font = `700 ${labelSize(w, key.black)}px 'Plus Jakarta Sans', system-ui, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillStyle = 'rgba(12, 12, 20, 0.75)'
-      ctx.fillText(keyLabel(note.midi), key.x + key.width / 2, bottom - 9)
+      ctx.fillText(noteName, key.x + key.width / 2, bottom - 9)
     }
   }
 
@@ -232,6 +254,7 @@ export function draw(
   // A key you hold always uses the right-hand color (track 0), whatever the song is doing.
   const lit = new Map(active)
   for (const midi of pressed) lit.set(midi, 0)
+  litKeys = lit.size
 
   // The line the notes land on, and the light of each lit key: a beam up the screen and a small flash of light
   // right above the key.
@@ -303,11 +326,13 @@ export function draw(
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     for (const key of keys.values()) {
-      if (keyNamesOnlyC && key.midi % 12 !== 0) continue
+      if (keyNamesOnlyC && !keyNamesComputer && key.midi % 12 !== 0) continue // only-C is about note names
+      const name = nameOf(key.midi)
+      if (name === undefined) continue
       ctx.font = `700 ${labelSize(key.width, key.black)}px 'Plus Jakarta Sans', system-ui, sans-serif`
       ctx.fillStyle = key.black ? 'rgba(255, 255, 255, 0.7)' : 'rgba(20, 20, 30, 0.65)'
       const y = key.black ? blackTop + blackHeight + RAIL_HEIGHT - 9 : keyboardTop + keyboardHeight - 11
-      ctx.fillText(keyLabel(key.midi), key.x + key.width / 2, y)
+      ctx.fillText(name, key.x + key.width / 2, y)
     }
   }
 
@@ -316,13 +341,14 @@ export function draw(
   sustainLevel += ((sustainHeld ? 1 : 0) - sustainLevel) * 0.18
   if (Math.abs(sustainLevel - (sustainHeld ? 1 : 0)) < 0.005) sustainLevel = sustainHeld ? 1 : 0
   if (railGlowColor !== null) {
-    const reach = 12 + 30 * sustainLevel // how far up the soft light goes
+    // While the pedal is held the same glow just gets brighter: it keeps its height and thickness.
+    const reach = 12 // how far up the soft light goes
     const light = ctx.createLinearGradient(0, railTop, 0, railTop - reach)
-    light.addColorStop(0, rgba(railGlowColor, 0.38 + 0.4 * sustainLevel))
+    light.addColorStop(0, rgba(railGlowColor, 0.38 + 0.57 * sustainLevel))
     light.addColorStop(1, rgba(railGlowColor, 0))
     ctx.fillStyle = light
     ctx.fillRect(0, railTop - reach, width, reach)
-    ctx.fillStyle = rgba(railGlowColor, 0.9)
-    ctx.fillRect(0, railTop - sustainLevel * 2, width, 1 + sustainLevel * 2) // the bright line thickens too
+    ctx.fillStyle = rgba(railGlowColor, 0.9 + 0.1 * sustainLevel)
+    ctx.fillRect(0, railTop, width, 1)
   }
 }

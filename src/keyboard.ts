@@ -72,7 +72,35 @@ export function layoutKeys(totalWidth: number, low = LOWEST, high = HIGHEST): Ma
   return keys
 }
 
-// The keys to show for a song with "Fit the piano to .midi" on: from the lowest to the highest note, widened to whole
+// The set octave range (Settings). The piano is nine octave blocks, numbered like the C's name: block 4 is C4 to B4 (middle C
+// is C4, MIDI 60). Block 0 is only A0 to B0 and block 8 is only C8, because the piano starts at A0 and ends at C8.
+export const OCTAVE_FIRST = 0
+export const OCTAVE_LAST = 8
+
+// Two block numbers, put in order and kept on the piano (0 to 8, at least one block). Anything that isn't a whole number
+// from 0 to 8 is brought to the nearest one.
+export function clampOctaves(first: number, last: number): { first: number; last: number } {
+  const fix = (n: number): number => Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST, Math.round(Number.isFinite(n) ? n : 0)))
+  const a = fix(first)
+  const b = fix(last)
+  return { first: Math.min(a, b), last: Math.max(a, b) }
+}
+
+// The keys (lowest and highest MIDI number) from the start of block `first` to the end of block `last`.
+export function octaveKeys(first: number, last: number): { low: number; high: number } {
+  const range = clampOctaves(first, last)
+  return {
+    low: Math.max(LOWEST, 12 * (range.first + 1)),
+    high: Math.min(HIGHEST, 12 * (range.last + 1) + 11),
+  }
+}
+
+// What to call a block in Settings: its C (C1 ... C8), and A0 for the first, partial one.
+export function octaveName(block: number): string {
+  return block === 0 ? 'A0' : `C${block}`
+}
+
+// The keys to show for a song with "Fit piano to .midi" on: from the lowest to the highest note, widened to whole
 // octaves (a C up to a B) so no key is cut off at an edge, and never less than `minSpan` semitones (two octaves) so a song
 // with a few notes doesn't get giant keys. It stays inside the 88 keys. No notes means the full piano.
 export function fitRange(notes: { midi: number }[], minSpan = 24): { low: number; high: number } {

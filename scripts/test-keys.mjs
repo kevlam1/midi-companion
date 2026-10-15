@@ -1,8 +1,8 @@
 // Checks the computer-keyboard piano mapping in src/computer-keys.ts without a browser.
 // Run it from the project folder: node scripts/test-keys.mjs
 import assert from 'node:assert/strict'
-import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from '../src/computer-keys.ts'
-import { fitRange, isBlack, keyLabel, layoutKeys } from '../src/keyboard.ts'
+import { OCTAVE_MAX, OCTAVE_MIN, keyCapForNote, noteForKey } from '../src/computer-keys.ts'
+import { clampOctaves, fitRange, isBlack, keyLabel, layoutKeys, octaveKeys, octaveName } from '../src/keyboard.ts'
 
 // 1. The bottom row starts at C4 and climbs. The top row starts at C5.
 const bottom = ['KeyZ', 'KeyS', 'KeyX', 'KeyD', 'KeyC', 'KeyV', 'KeyG', 'KeyB', 'KeyH', 'KeyN', 'KeyJ', 'KeyM', 'Comma', 'KeyL', 'Period', 'Semicolon', 'Slash']
@@ -75,5 +75,50 @@ assert.equal(four.get(48).x, 0)
 assert.ok(Math.abs(four.get(95).x + four.get(95).width - 1000) < 1e-9)
 assert.ok(Math.abs(four.get(48).width - 1000 / 28) < 1e-9) // wider keys than the full piano's 1000 / 52
 assert.ok([...four.values()].every((key) => key.x > -key.width && key.x + key.width <= 1000 + 1e-9))
+
+// The computer key named for a piano key (the "Computer keys" key names): C4 is Z, C5 is Q (the top row wins over the
+// bottom row where both reach), E6 is P, and keys nobody plays have no name. The arrow keys' octave shift moves it.
+assert.equal(keyCapForNote(60, 0), 'Z')
+assert.equal(keyCapForNote(61, 0), 'S')
+assert.equal(keyCapForNote(72, 0), 'Q')
+assert.equal(keyCapForNote(73, 0), '2')
+assert.equal(keyCapForNote(76, 0), 'E')
+assert.equal(keyCapForNote(88, 0), 'P')
+assert.equal(keyCapForNote(59, 0), undefined)
+assert.equal(keyCapForNote(89, 0), undefined)
+assert.equal(keyCapForNote(48, 0), undefined)
+assert.equal(keyCapForNote(48, -1), 'Z') // down an octave: C3 is Z
+assert.equal(keyCapForNote(72, 1), 'Z') // up an octave: C5 is Z
+// every piano key some computer key plays is named by a key that really plays it
+for (let octave = OCTAVE_MIN; octave <= OCTAVE_MAX; octave++) {
+  for (let midi = 21; midi <= 108; midi++) {
+    const cap = keyCapForNote(midi, octave)
+    if (cap === undefined) continue
+    const code = Object.keys({ Comma: 1, Period: 1, Semicolon: 1, Slash: 1 }).find((c) => ({ Comma: ',', Period: '.', Semicolon: ';', Slash: '/' })[c] === cap) ?? (/^\d$/.test(cap) ? `Digit${cap}` : `Key${cap}`)
+    assert.equal(noteForKey(code, octave), midi, `${cap} plays ${midi} at octave ${octave}`)
+  }
+}
+
+// The set octave range (Settings): blocks 0 to 8, block 4 is C4 (60) to B4 (71), and the ends are clipped to the 88 keys.
+assert.deepEqual(octaveKeys(4, 4), { low: 60, high: 71 })
+assert.deepEqual(octaveKeys(2, 6), { low: 36, high: 95 }) // C2 to B6
+assert.deepEqual(octaveKeys(0, 8), { low: 21, high: 108 }) // the whole piano
+assert.deepEqual(octaveKeys(0, 0), { low: 21, high: 23 }) // A0 to B0
+assert.deepEqual(octaveKeys(8, 8), { low: 108, high: 108 }) // just C8
+assert.deepEqual(octaveKeys(5, 3), octaveKeys(3, 5)) // out of order is put in order
+assert.deepEqual(clampOctaves(-4, 20), { first: 0, last: 8 })
+assert.deepEqual(clampOctaves(2.6, 3.2), { first: 3, last: 3 })
+assert.deepEqual(clampOctaves(NaN, 5), { first: 0, last: 5 })
+assert.equal(octaveName(0), 'A0')
+assert.equal(octaveName(4), 'C4')
+// every range starts on a C (or the piano's first key) and ends on a B (or the piano's last key), so no key is cut off
+for (let a = 0; a <= 8; a++) {
+  for (let b = a; b <= 8; b++) {
+    const { low, high } = octaveKeys(a, b)
+    assert.ok(low === 21 || low % 12 === 0, `${a}-${b} starts on a C`)
+    assert.ok(high === 108 || high % 12 === 11, `${a}-${b} ends on a B`)
+    assert.ok(low >= 21 && high <= 108 && low <= high)
+  }
+}
 
 console.log('All computer keyboard checks passed.')

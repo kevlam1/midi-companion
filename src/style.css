@@ -123,11 +123,26 @@ button {
 }
 
 /* The canvas is see-through, so these lights show behind the falling notes. */
+/* --glow-level (0 to 1, set by main.ts) is how much the music is lighting up: the light at the top swells, and a second
+   light rises from the piano. At rest only the soft light at the top shows. The top one fades out in steps so it has no hard edge. */
 #stage-area {
+  --glow-level: 0;
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(32% 24% at 50% 0%, rgb(var(--glow-rgb) / calc(0.15 * var(--glow-on))), transparent 100%),
+    radial-gradient(
+      70% 46% at 50% 0%,
+      rgb(var(--glow-rgb) / calc((0.11 + 0.2 * var(--glow-level)) * var(--glow-on))) 0%,
+      rgb(var(--glow-rgb) / calc((0.06 + 0.1 * var(--glow-level)) * var(--glow-on))) 35%,
+      rgb(var(--glow-rgb) / calc((0.02 + 0.04 * var(--glow-level)) * var(--glow-on))) 65%,
+      transparent 100%
+    ),
+    radial-gradient(
+      80% 30% at 50% 100%,
+      rgb(var(--glow-rgb) / calc(0.24 * var(--glow-level) * var(--glow-on))) 0%,
+      rgb(var(--glow-rgb) / calc(0.08 * var(--glow-level) * var(--glow-on))) 50%,
+      transparent 100%
+    ),
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
 }
 
@@ -639,7 +654,7 @@ button {
   z-index: 1;
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.6rem;
+  margin-top: calc(0.6rem + var(--pedal-shift, 0px)); /* main.ts raises --pedal-shift when the control bar is in the way */
   translate: -50% 0;
   pointer-events: none;
 }
@@ -1552,6 +1567,12 @@ button:hover > .mode-icon {
   color: var(--text-3);
   font-size: 0.74rem;
   font-weight: 400;
+}
+
+/* A name inside a description that should stand out: white and bold. */
+.option-row small .hl {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .option-row:has(input:disabled) {
@@ -2587,4 +2608,279 @@ html[data-bg-light] #pedal {
 
 #only-c-row {
   margin-top: 0.9rem;
+}
+
+.segmented[hidden] {
+  display: none;
+}
+
+#name-style {
+  margin-top: 0.6rem;
+}
+
+/* ---------- Set octave range (Settings) ---------- */
+/* Nine octave tiles with a window over them. Drag the window's edges to size it, or its middle to move it. */
+#range-editor {
+  margin: 0.7rem 0 0;
+}
+
+/* The editor sits between two option rows, so the row after it needs the usual gap itself (hidden or not). */
+#range-editor + .option-row {
+  margin-top: 0.9rem;
+}
+
+#range-editor[hidden] {
+  display: none;
+}
+
+#range-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+  height: 46px;
+  touch-action: none;
+  user-select: none;
+}
+
+.range-cell {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text-3);
+  font-size: 0.68rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+#range-window {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border: 2px solid rgb(var(--accent-rgb));
+  border-radius: 10px;
+  background: rgb(var(--accent-rgb) / 0.16);
+  box-shadow: 0 0 14px rgb(var(--accent-rgb) / 0.3);
+  cursor: grab;
+  transition:
+    left 0.12s var(--ease),
+    width 0.12s var(--ease);
+}
+
+#range-window.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.range-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: ew-resize;
+}
+
+.range-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: rgb(var(--accent-rgb));
+  translate: -50% -50%;
+}
+
+.range-handle.left {
+  left: -9px;
+}
+
+.range-handle.right {
+  right: -9px;
+}
+
+.range-handle:focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb));
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+#range-readout {
+  margin: 0.55rem 0 0;
+}
+
+/* ---------- Phones ---------- */
+/* This block is last on purpose: it has to win over the rules above it. The piano keys are not touched. */
+@media (max-width: 600px) {
+  /* Header: the title with the buttons beside it on the first row, the tabs across the full width on the second, and the
+     chips on the third. (.left is dissolved so its title and chips can be placed on their own.) */
+  #topbar {
+    gap: 0.45rem 0.6rem;
+    padding: 0.5rem 0.75rem 0.35rem;
+  }
+
+  .left {
+    display: contents;
+  }
+
+  .brand {
+    order: 1;
+  }
+
+  .brand h1 {
+    font-size: 0.98rem;
+  }
+
+  #toolbar {
+    flex: 1 1 0;
+    flex-wrap: wrap;
+    order: 2;
+    justify-content: flex-end;
+  }
+
+  #tabs {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  #info {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    order: 4;
+    gap: 0.35rem;
+  }
+
+  /* The hand picker (Learn, two tracks) is too wide to share the first row, so the buttons go on a row of their own. */
+  #app[data-mode='learn'][data-hands='2'] #toolbar {
+    flex: 1 1 100%;
+    order: 5;
+    justify-content: center;
+  }
+
+  #fps {
+    display: none; /* a debugging number, no room for it here */
+  }
+
+  #tabs button {
+    gap: 0.3rem;
+    padding: 0.5rem 0.35rem;
+    font-size: 0.8rem;
+  }
+
+  #hands button {
+    padding: 0 0.6rem;
+    font-size: 0.74rem;
+  }
+
+  #now-row {
+    padding: 0 0.75rem 0.4rem;
+  }
+
+  /* The control bar (as a row) wraps: the controls on top, the seek slider on a row of its own below, and nothing is
+     squeezed or pushed off the screen. Snapped to a side it is still a column. */
+  #controls:not([data-vertical='true']) {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 0.6rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  /* The seek slider gets a full row of its own at the bottom, so it is never mistaken for the volume slider. */
+  #controls:not([data-vertical='true']) #seek {
+    flex: 1 1 100%;
+    order: 10;
+    width: auto;
+    min-width: 0;
+  }
+
+  #controls:not([data-vertical='true']) #time {
+    min-width: 0;
+  }
+
+  #volume {
+    width: 64px;
+  }
+
+  #volume-group .percent {
+    display: none; /* the speaker button and the slider are enough, and a phone has its own volume buttons */
+  }
+
+  /* Popups and Settings: nearly the whole screen, with the scrolling part sized to it. */
+  .panel,
+  #settings {
+    width: calc(100vw - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+    padding: 1rem 1rem 1.1rem;
+    border-radius: 18px;
+  }
+
+  .panel-scroll {
+    max-height: calc(100dvh - 1.5rem - 5.5rem);
+  }
+
+  /* The two hands stack (left, then right) instead of sitting side by side, with the swap button on the line between. */
+  .color-split {
+    grid-template-columns: 1fr;
+    gap: 1.5rem; /* room for the swap button on the line between the hands */
+  }
+
+  .color-split .swatches {
+    grid-template-columns: repeat(7, 30px); /* fourteen colors in two rows of seven */
+  }
+
+  .color-divider {
+    height: 1px;
+    align-self: auto;
+  }
+
+  .color-picker.theme .swatches {
+    grid-template-columns: repeat(6, 30px); /* twelve colors in two rows of six, not one row 470 px wide */
+  }
+
+  .bg-picker .swatches {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* The computer keyboard keys: the label above them, and the keys wrap if they still do not fit. */
+  .keys > div {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .keys dd {
+    flex-wrap: wrap;
+  }
+
+  kbd {
+    min-width: 1.45rem;
+    padding: 0 0.2rem;
+  }
+}
+
+/* Very narrow phones (320 to 360 px): smaller header buttons so the three still fit beside the title, and six note colors per row. */
+@media (max-width: 360px) {
+  #toolbar {
+    gap: 0.3rem;
+  }
+
+  #toolbar .btn,
+  #toolbar .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .brand h1 {
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .color-split .swatches {
+    grid-template-columns: repeat(6, 30px);
+  }
 }

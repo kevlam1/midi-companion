@@ -235,7 +235,7 @@ export const appHtml = `
     </div>
     <label class="option-row glow-row">
       <input type="checkbox" id="glow-on" class="switch" />
-      <span>Background glow<small>the soft light behind the notes, in the theme color</small></span>
+      <span>Background glow<small>The soft light behind the notes, in the theme color</small></span>
     </label>
     <div class="bg-picker">
       <span class="color-label">Background</span>
@@ -244,7 +244,7 @@ export const appHtml = `
     <div class="color-options">
       <label class="option-row">
         <input type="checkbox" id="dim-left" class="switch" />
-        <span>Dim the left hand<small>for when both hands have the same color</small></span>
+        <span>Dim the left hand<small>For when both hands have the same color</small></span>
       </label>
       <button id="reset-colors" class="link">Default</button>
     </div>
@@ -272,15 +272,27 @@ export const appHtml = `
       <button data-names="notes" role="radio" aria-checked="false">On the notes</button>
       <button data-names="both" role="radio" aria-checked="false">On both</button>
     </div>
+    <div id="name-style" class="segmented" role="radiogroup" aria-label="What the names say" hidden>
+      <button data-style="notes" role="radio" aria-checked="true" title="The note's name: C, C#, D ...">Note names</button>
+      <button data-style="computer" role="radio" aria-checked="false" title="The computer key that plays it (follows the up and down arrows)">Computer keys</button>
+    </div>
     <label id="only-c-row" class="option-row sub" hidden>
       <input type="checkbox" id="only-c" class="switch" />
-      <span>Only label the C keys<small>hide the other letters, so just C1, C2, C3 and so on show on the keys</small></span>
+      <span>Only label the C keys<small>Hide the other names, so only C1, C2, C3 and so on show on the keys</small></span>
     </label>
     <h3>Options</h3>
     <label class="option-row">
       <input type="checkbox" id="fit-range" class="switch" />
-      <span>Fit the piano to .midi<small>show only the octaves the song uses, with wider keys</small></span>
+      <span>Fit piano to .midi<small>Show only the octaves the song uses, with wider keys</small></span>
     </label>
+    <label class="option-row">
+      <input type="checkbox" id="octave-range" class="switch" />
+      <span>Display set octave range<small>Pick the octaves yourself, in every mode. Takes priority over <b class="hl">Fit piano to .midi</b></small></span>
+    </label>
+    <div id="range-editor" hidden>
+      <div id="range-strip" aria-label="Octaves shown on the piano"></div>
+      <p id="range-readout" class="muted small"></p>
+    </div>
     <label class="option-row">
       <input type="checkbox" id="show-bpm" class="switch" />
       <span>Tempo<small>Show the song's BPM in the header</small></span>
@@ -303,29 +315,29 @@ export const appHtml = `
     </label>
     <label class="option-row">
       <input type="checkbox" id="computer-keys" class="switch" />
-      <span>Play with the computer keyboard<small>turn off so the letter and number keys stop playing notes. Space and the arrows still work.</small></span>
+      <span>Play with the computer keyboard<small>Turn off so the letter and number keys stop playing notes. Space and the arrows still work</small></span>
     </label>
     <label class="option-row">
       <input type="checkbox" id="rail-glow" class="switch" />
-      <span>Bar glow<small>the light along the black bar above the piano, in the theme color</small></span>
+      <span>Bar glow<small>The light along the black bar above the piano, in the theme color</small></span>
     </label>
     <label class="option-row">
       <input type="checkbox" id="key-glow" class="switch" />
-      <span>Key glow<small>the light that rises from a key when it is pressed or its note is playing</small></span>
+      <span>Key glow<small>The light that rises from a key when it is pressed or its note is playing</small></span>
     </label>
     <label class="option-row">
       <input type="checkbox" id="show-waiting" class="switch" />
-      <span>Show "Waiting for"<small>the display that names the notes Learn is waiting for</small></span>
+      <span>Show "Waiting for"<small>The display that names the notes Learn is waiting for</small></span>
     </label>
     <label class="option-row">
       <input type="checkbox" id="one-by-one" class="switch" />
-      <span>Play chords note by note<small>in Learn, a chord goes through once each of its notes has been pressed, even if not together</small></span>
+      <span>Play chords note by note<small>In Learn, a chord goes through once each of its notes has been pressed, even if not together</small></span>
     </label>
     <label class="option-row">
       <input type="checkbox" id="share-song" class="switch" />
       <span>
         Fill an empty mode with the other mode's song
-        <small>Autoplay and Learn keep their own songs. This only loads one into a mode that has none yet.</small>
+        <small>Autoplay and Learn keep their own songs. This only loads one into a mode that has none yet</small>
       </span>
     </label>
     <h3>Computer keyboard</h3>

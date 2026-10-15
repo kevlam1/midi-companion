@@ -4,7 +4,20 @@ import { Frequency, getContext, immediate, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
-import { HIGHEST, LOWEST, fitRange, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
+import {
+  HIGHEST,
+  LOWEST,
+  OCTAVE_FIRST,
+  OCTAVE_LAST,
+  clampOctaves,
+  fitRange,
+  keyAt,
+  keyboardLayout,
+  layoutKeys,
+  octaveKeys,
+  octaveName,
+  type Key,
+} from './keyboard.ts'
 import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
 import {
   canRead,
@@ -30,6 +43,8 @@ import {
   setHandColors,
   setKeyGlow,
   setKeyNames,
+  setComputerOctave,
+  litKeyCount,
   setLightBackground,
   setRailGlow,
   setSustainGlow,
@@ -159,6 +174,8 @@ function start(app: HTMLDivElement): void {
   let pendingSong: Song | null = null // a file dropped on the welcome screen or in Free play, waiting for a mode
   let keys = new Map<number, Key>()
   let keysWidth = 0
+  let glowLevel = 0 // 0 to 1: how much the glow behind the notes is swelling right now (see the frame loop)
+  let glowShown = 0 // the value last written to the page, so it is only written when it changes
   let keysLow = LOWEST // the range the current `keys` were laid out for
   let keysHigh = HIGHEST
   let dragging = false // true while the seek slider is held, so the loop doesn't fight it
@@ -533,6 +550,7 @@ function start(app: HTMLDivElement): void {
     const rect = waitRect(waitPos, learnLabel.offsetWidth, learnLabel.offsetHeight)
     learnLabel.style.left = `${rect.left}px`
     learnLabel.style.top = `${rect.top}px`
+    placePedal() // the Sustain chip steps under it
   }
 
   function endWaitDrag(): void {
@@ -594,11 +612,55 @@ function start(app: HTMLDivElement): void {
     learnZones.forEach((zone, i) => zone.classList.toggle('active', i === over))
   })
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) learnLabel.addEventListener(type, endWaitDrag)
+  // The "Sustain" chip floats under the header in the middle. If the control bar (as a row) or the Waiting display
+  // sits there, the chip moves just past it (under it): --pedal-shift is how far down it goes. Their own left and top
+  // are used, since the bar glides into place. Called when either one moves, and when the chip shows or hides.
+  const transient = app.querySelector<HTMLDivElement>('#transient')!
+  function placePedal(): void {
+    const wasShift = parseFloat(transient.style.getPropertyValue('--pedal-shift')) || 0
+    let shift = 0
+    if (pedalLabel.textContent !== '') {
+      const area = stageArea.getBoundingClientRect()
+      const chip = pedalLabel.getBoundingClientRect()
+      const chipTop = chip.top - wasShift // where it would be with no shift
+      const inTheWay: { left: number; top: number; width: number; height: number }[] = []
+      if (controls.dataset.vertical !== 'true' && controls.offsetWidth > 0) {
+        inTheWay.push({
+          left: area.left + (parseFloat(controls.style.left) || 0),
+          top: area.top + (parseFloat(controls.style.top) || 0),
+          width: controls.offsetWidth,
+          height: controls.offsetHeight,
+        })
+      }
+      if (learnLabel.offsetWidth > 0) {
+        inTheWay.push({
+          left: area.left + (parseFloat(learnLabel.style.left) || 0),
+          top: area.top + (parseFloat(learnLabel.style.top) || 0),
+          width: learnLabel.offsetWidth,
+          height: learnLabel.offsetHeight,
+        })
+      }
+      inTheWay.sort((a, b) => a.top - b.top) // top to bottom, so passing one can also clear the next
+      for (const item of inTheWay) {
+        const top = chipTop + shift
+        const overlapsAcross = chip.left < item.left + item.width + WAIT_INSET && chip.right > item.left - WAIT_INSET
+        const overlapsDown = top < item.top + item.height + WAIT_INSET && top + chip.height > item.top - WAIT_INSET
+        if (overlapsAcross && overlapsDown) shift = item.top + item.height + WAIT_INSET - chipTop
+      }
+    }
+    transient.style.setProperty('--pedal-shift', `${Math.max(0, shift)}px`)
+  }
+
   new ResizeObserver(placeLearn).observe(learnLabel)
   new ResizeObserver(placeLearn).observe(stageArea)
   new ResizeObserver(placeLearn).observe(header)
+  new ResizeObserver(placePedal).observe(stageArea)
+  new ResizeObserver(placePedal).observe(header)
   placeLearn()
-  afterBarPlaced = placeLearn // whenever the control bar moves, the Waiting display checks it isn't in the way
+  afterBarPlaced = () => {
+    placeLearn() // whenever the control bar moves, the Waiting display and the Sustain chip check it isn't in the way
+    placePedal()
+  }
   afterBarPlaced()
 
   // The Play button is an icon button. Its state (data-state) decides which icon shows: the play triangle, the
@@ -1348,6 +1410,7 @@ function start(app: HTMLDivElement): void {
     piano.setSustain(down)
     setSustainGlow(down && options.sustainGlow) // the glow along the black bar brightens while the pedal is held
     pedalLabel.textContent = down ? 'Sustain' : ''
+    placePedal() // steps out of the control bar's way if it is there
   }
   function releaseTyped(): void {
     spacePedal = false // lift the pedal first, so the notes below aren't held by it
@@ -1368,6 +1431,7 @@ function start(app: HTMLDivElement): void {
       event.preventDefault() // otherwise the page would scroll
       octaveShift = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, octaveShift + (event.code === 'ArrowUp' ? 1 : -1)))
       showOctave()
+      setComputerOctave(octaveShift) // the computer-key names on the piano move too
       return
     }
 
@@ -1435,6 +1499,13 @@ function start(app: HTMLDivElement): void {
   // waiting: show the "Waiting for" chip in Learn. shareSong: a mode with no song yet gets the other mode's song.
   // railGlow: the theme-colored glow along the black bar. keyGlow: the light from a lit key (beam, flash and halo).
   const OPTIONS_KEY = 'midi-companion.options'
+  const DEFAULT_OCTAVES = { first: OCTAVE_FIRST, last: OCTAVE_LAST } // the set octave range starts with every octave in the window
+  // The saved octave blocks, or the default ones if nothing usable was saved (see clampOctaves in keyboard.ts).
+  function savedOctaves(first: unknown, last: unknown): { octaveFirst: number; octaveLast: number } {
+    const ok = typeof first === 'number' && typeof last === 'number' && Number.isFinite(first) && Number.isFinite(last)
+    const range = ok ? clampOctaves(first, last) : DEFAULT_OCTAVES
+    return { octaveFirst: range.first, octaveLast: range.last }
+  }
   const options = (() => {
     try {
       const saved = JSON.parse(readSetting(OPTIONS_KEY) ?? 'null') as Record<string, unknown> | null
@@ -1446,7 +1517,10 @@ function start(app: HTMLDivElement): void {
         computerKeys: saved?.computerKeys !== false,
         oneByOne: saved?.oneByOne !== false, // on unless switched off
         fitRange: saved?.fitRange === true, // off unless switched on
+        octaveRange: saved?.octaveRange === true, // a set octave range, off unless switched on
+        ...savedOctaves(saved?.octaveFirst, saved?.octaveLast),
         onlyC: saved?.onlyC === true,
+        computerNames: saved?.computerNames === true, // names show the computer keys, not the notes' names
         showBpm: saved?.showBpm !== false,
         showNotes: saved?.showNotes !== false,
         showMidi: saved?.showMidi !== false,
@@ -1463,7 +1537,11 @@ function start(app: HTMLDivElement): void {
         computerKeys: true,
         oneByOne: true,
         fitRange: false,
+        octaveRange: false,
+        octaveFirst: DEFAULT_OCTAVES.first,
+        octaveLast: DEFAULT_OCTAVES.last,
         onlyC: false,
+        computerNames: false,
         showBpm: true,
         showNotes: true,
         showMidi: true,
@@ -1477,7 +1555,7 @@ function start(app: HTMLDivElement): void {
   // Tells the canvas drawing about the glow options. The bar glow takes the theme's color.
   function applyRenderOptions(): void {
     setKeyGlow(options.keyGlow)
-    setKeyNames(options.keyNames, options.onlyC)
+    setKeyNames(options.keyNames, options.onlyC, options.computerNames)
     setRailGlow(options.railGlow ? findColor(handChoice.theme)!.main : null)
   }
 
@@ -1682,24 +1760,144 @@ function start(app: HTMLDivElement): void {
   const nameButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#key-names button')
   const onlyCRow = settingsDialog.querySelector<HTMLLabelElement>('#only-c-row')!
   const onlyCBox = settingsDialog.querySelector<HTMLInputElement>('#only-c')!
+  const styleRow = settingsDialog.querySelector<HTMLDivElement>('#name-style')!
+  const styleButtons = styleRow.querySelectorAll<HTMLButtonElement>('button')
   function showNameChoice(): void {
     for (const button of nameButtons) button.setAttribute('aria-checked', String(button.dataset.names === options.keyNames))
-    // "Only label the C keys" is about the names on the keys, so it only shows when those are on
-    onlyCRow.hidden = options.keyNames !== 'keys' && options.keyNames !== 'both'
+    // "Note names or computer keys" shows whenever names are on. "Only label the C keys" is about the notes' names on
+    // the keys, so it only shows when those are on and the names are note names.
+    styleRow.hidden = options.keyNames === 'none'
+    for (const button of styleButtons) button.setAttribute('aria-checked', String((button.dataset.style === 'computer') === options.computerNames))
+    onlyCRow.hidden = (options.keyNames !== 'keys' && options.keyNames !== 'both') || options.computerNames
     onlyCBox.checked = options.onlyC
+  }
+  for (const button of styleButtons) {
+    button.addEventListener('click', () => {
+      options.computerNames = button.dataset.style === 'computer'
+      showNameChoice()
+      applyRenderOptions()
+      saveOptions()
+    })
   }
   onlyCBox.addEventListener('change', () => {
     options.onlyC = onlyCBox.checked
     applyRenderOptions()
     saveOptions()
   })
-  // "Fit the piano to .midi": the keys on screen are the song's octaves instead of all 88 (see pianoRange below).
+  // "Fit piano to .midi": the keys on screen are the song's octaves instead of all 88 (see pianoRange below).
   const fitBox = settingsDialog.querySelector<HTMLInputElement>('#fit-range')!
   fitBox.checked = options.fitRange
   fitBox.addEventListener('change', () => {
     options.fitRange = fitBox.checked
     saveOptions()
   })
+  // "Display set octave range": nine octave tiles with a window over them. Drag the window's left or right edge to size
+  // it, drag its middle to move it, or click a tile outside it to put it there. Edges snap to whole octaves, and the
+  // arrow keys work on a focused edge. The piano changes while it is dragged (see pianoRange).
+  const rangeBox = settingsDialog.querySelector<HTMLInputElement>('#octave-range')!
+  const rangeEditor = settingsDialog.querySelector<HTMLDivElement>('#range-editor')!
+  const rangeStrip = settingsDialog.querySelector<HTMLDivElement>('#range-strip')!
+  const rangeReadout = settingsDialog.querySelector<HTMLParagraphElement>('#range-readout')!
+  const blocks = OCTAVE_LAST - OCTAVE_FIRST + 1
+  for (let block = OCTAVE_FIRST; block <= OCTAVE_LAST; block++) {
+    const cell = document.createElement('div')
+    cell.className = 'range-cell'
+    cell.textContent = octaveName(block)
+    rangeStrip.append(cell)
+  }
+  const rangeWindow = document.createElement('div')
+  rangeWindow.id = 'range-window'
+  const handles = (['left', 'right'] as const).map((side) => {
+    const handle = document.createElement('span')
+    handle.className = `range-handle ${side}`
+    handle.tabIndex = 0
+    handle.setAttribute('role', 'slider')
+    handle.setAttribute('aria-label', side === 'left' ? 'Lowest octave' : 'Highest octave')
+    handle.dataset.side = side
+    rangeWindow.append(handle)
+    return handle
+  })
+  rangeStrip.append(rangeWindow)
+  function showOctaveEditor(): void {
+    rangeBox.checked = options.octaveRange
+    rangeEditor.hidden = !options.octaveRange
+    rangeWindow.style.left = `${(options.octaveFirst / blocks) * 100}%`
+    rangeWindow.style.width = `${((options.octaveLast - options.octaveFirst + 1) / blocks) * 100}%`
+    const count = options.octaveLast - options.octaveFirst + 1
+    const top = options.octaveLast === OCTAVE_LAST ? 'C8' : `B${options.octaveLast}` // the piano ends on C8
+    rangeReadout.textContent = `${octaveName(options.octaveFirst)} to ${top}: ${count} ${count === 1 ? 'octave' : 'octaves'}`
+    handles[0].setAttribute('aria-valuenow', String(options.octaveFirst))
+    handles[1].setAttribute('aria-valuenow', String(options.octaveLast))
+  }
+  function setOctaves(first: number, last: number): void {
+    const range = clampOctaves(first, last)
+    if (range.first === options.octaveFirst && range.last === options.octaveLast) return
+    options.octaveFirst = range.first
+    options.octaveLast = range.last
+    showOctaveEditor()
+    saveOptions()
+  }
+  rangeBox.addEventListener('change', () => {
+    options.octaveRange = rangeBox.checked
+    // Turning it on starts with every octave in the window, to be sized down from there.
+    if (options.octaveRange) {
+      options.octaveFirst = DEFAULT_OCTAVES.first
+      options.octaveLast = DEFAULT_OCTAVES.last
+    }
+    showOctaveEditor()
+    saveOptions()
+  })
+  // What a drag is doing: moving an edge, or carrying the whole window (keeping its size, grabbed `grab` blocks in).
+  let rangeDrag: { pointerId: number; part: 'left' | 'right' | 'body'; grab: number } | null = null
+  const blockAt = (event: PointerEvent): number => {
+    const rect = rangeStrip.getBoundingClientRect()
+    return Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST, Math.floor(((event.clientX - rect.left) / rect.width) * blocks)))
+  }
+  rangeStrip.addEventListener('pointerdown', (event) => {
+    const block = blockAt(event)
+    const side = (event.target as HTMLElement).dataset.side
+    let part: 'left' | 'right' | 'body'
+    if (side === 'left' || side === 'right') part = side
+    else if (block >= options.octaveFirst && block <= options.octaveLast) part = 'body'
+    else {
+      // a tile outside the window: bring the window there, its middle on that tile
+      const span = options.octaveLast - options.octaveFirst
+      const first = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST - span, block - Math.floor(span / 2)))
+      setOctaves(first, first + span)
+      part = 'body'
+    }
+    rangeDrag = { pointerId: event.pointerId, part, grab: block - options.octaveFirst }
+    rangeWindow.classList.add('dragging')
+    rangeStrip.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  })
+  rangeStrip.addEventListener('pointermove', (event) => {
+    if (!rangeDrag || event.pointerId !== rangeDrag.pointerId) return
+    const block = blockAt(event)
+    if (rangeDrag.part === 'left') setOctaves(Math.min(block, options.octaveLast), options.octaveLast)
+    else if (rangeDrag.part === 'right') setOctaves(options.octaveFirst, Math.max(block, options.octaveFirst))
+    else {
+      const span = options.octaveLast - options.octaveFirst
+      const first = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST - span, block - rangeDrag.grab))
+      setOctaves(first, first + span)
+    }
+  })
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    rangeStrip.addEventListener(type, () => {
+      rangeDrag = null
+      rangeWindow.classList.remove('dragging')
+    })
+  }
+  for (const handle of handles) {
+    handle.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      event.preventDefault()
+      const step = event.key === 'ArrowRight' ? 1 : -1
+      if (handle.dataset.side === 'left') setOctaves(Math.min(options.octaveFirst + step, options.octaveLast), options.octaveLast)
+      else setOctaves(options.octaveFirst, Math.max(options.octaveLast + step, options.octaveFirst))
+    })
+  }
+  showOctaveEditor()
   showNameChoice()
   for (const button of nameButtons) {
     button.addEventListener('click', () => {
@@ -1797,7 +1995,11 @@ function start(app: HTMLDivElement): void {
       computerKeys: true,
       oneByOne: true,
       fitRange: false,
+      octaveRange: false,
+      octaveFirst: DEFAULT_OCTAVES.first,
+      octaveLast: DEFAULT_OCTAVES.last,
       onlyC: false,
+      computerNames: false,
       showBpm: true,
       showNotes: true,
       showMidi: true,
@@ -1816,6 +2018,7 @@ function start(app: HTMLDivElement): void {
     computerKeysBox.checked = options.computerKeys
     oneByOneBox.checked = options.oneByOne
     fitBox.checked = options.fitRange
+    showOctaveEditor()
     learn.oneByOne = options.oneByOne
     showNameChoice()
     applyEarly()
@@ -2223,12 +2426,13 @@ function start(app: HTMLDivElement): void {
     }),
   )
 
-  // The keys on screen. With "Fit the piano to .midi" on, a song in Autoplay or Learn shows only the octaves it uses, worked
+  // The keys on screen. With "Fit piano to .midi" on, a song in Autoplay or Learn shows only the octaves it uses, worked
   // out once per song from every note in the file, so it stays the same for the whole song and when tracks are switched.
   // Free play, the welcome screen, and the setting off show all 88 keys. Notes played outside the shown keys still sound.
   const fullRange = { low: LOWEST, high: HIGHEST }
   const fitCache = new WeakMap<FallingNote[], { low: number; high: number }>()
   function pianoRange(): { low: number; high: number } {
+    if (options.octaveRange) return octaveKeys(options.octaveFirst, options.octaveLast) // my own pick wins, in every mode
     if (!options.fitRange || !isSongMode(mode) || rankedNotes.length === 0) return fullRange
     let range = fitCache.get(rankedNotes)
     if (!range) {
@@ -2309,6 +2513,14 @@ function start(app: HTMLDivElement): void {
       mode === 'free' ? trails : [],
       wallClock,
     )
+    // The glow behind the notes swells with the music: more lit keys, more light. It comes up fairly quickly and
+    // fades slowly, and the page's style is only touched when it has really changed.
+    const glowTarget = Math.min(1, litKeyCount() / 6)
+    glowLevel += (glowTarget - glowLevel) * (glowTarget > glowLevel ? 0.15 : 0.05)
+    if (Math.abs(glowLevel - glowShown) > 0.01 || (glowLevel < 0.01 && glowShown !== 0)) {
+      glowShown = glowLevel < 0.01 ? 0 : glowLevel
+      stageArea.style.setProperty('--glow-level', glowShown.toFixed(2))
+    }
     // The tempo chip in the header: the file's tempo at this point in the song, times the playback speed (what I hear).
     const fileBpm = tempoAt(currentTempos, time)
     const bpmText = currentTempos.length > 0 ?`${formatBpm(fileBpm * clock.speed)} BPM` : ''

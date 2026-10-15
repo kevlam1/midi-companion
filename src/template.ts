@@ -272,7 +272,15 @@ export const appHtml = `
       <button data-names="notes" role="radio" aria-checked="false">On the notes</button>
       <button data-names="both" role="radio" aria-checked="false">On both</button>
     </div>
+    <label id="only-c-row" class="option-row sub" hidden>
+      <input type="checkbox" id="only-c" class="switch" />
+      <span>Only label the C keys<small>hide the other letters, so just C1, C2, C3 and so on show on the keys</small></span>
+    </label>
     <h3>Options</h3>
+    <label class="option-row">
+      <input type="checkbox" id="fit-range" class="switch" />
+      <span>Fit the piano to .midi<small>show only the octaves the song uses, with wider keys</small></span>
+    </label>
     <label class="option-row">
       <input type="checkbox" id="show-bpm" class="switch" />
       <span>Tempo<small>Show the song's BPM in the header</small></span>

@@ -2579,3 +2579,12 @@ html[data-bg-light] #pedal {
   margin-top: 0.2rem;
   font-size: 0.76rem;
 }
+
+/* "Only label the C keys" sits under the Key names choice, and is only there while names on the keys are on. */
+.option-row[hidden] {
+  display: none;
+}
+
+#only-c-row {
+  margin-top: 0.9rem;
+}

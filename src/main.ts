@@ -4,7 +4,7 @@ import { Frequency, getContext, immediate, start as startAudio } from 'tone'
 import { Clock } from './clock.ts'
 import { OCTAVE_MAX, OCTAVE_MIN, noteForKey } from './computer-keys.ts'
 import { orderTracksByPitch } from './hands.ts'
-import { HIGHEST, LOWEST, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
+import { HIGHEST, LOWEST, fitRange, keyAt, keyboardLayout, layoutKeys, type Key } from './keyboard.ts'
 import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
 import {
   canRead,
@@ -159,6 +159,8 @@ function start(app: HTMLDivElement): void {
   let pendingSong: Song | null = null // a file dropped on the welcome screen or in Free play, waiting for a mode
   let keys = new Map<number, Key>()
   let keysWidth = 0
+  let keysLow = LOWEST // the range the current `keys` were laid out for
+  let keysHigh = HIGHEST
   let dragging = false // true while the seek slider is held, so the loop doesn't fight it
   let fpsFrames = 0
   let fpsSince = performance.now()
@@ -1443,6 +1445,8 @@ function start(app: HTMLDivElement): void {
         keyGlow: saved?.keyGlow !== false,
         computerKeys: saved?.computerKeys !== false,
         oneByOne: saved?.oneByOne !== false, // on unless switched off
+        fitRange: saved?.fitRange === true, // off unless switched on
+        onlyC: saved?.onlyC === true,
         showBpm: saved?.showBpm !== false,
         showNotes: saved?.showNotes !== false,
         showMidi: saved?.showMidi !== false,
@@ -1458,6 +1462,8 @@ function start(app: HTMLDivElement): void {
         keyGlow: true,
         computerKeys: true,
         oneByOne: true,
+        fitRange: false,
+        onlyC: false,
         showBpm: true,
         showNotes: true,
         showMidi: true,
@@ -1471,7 +1477,7 @@ function start(app: HTMLDivElement): void {
   // Tells the canvas drawing about the glow options. The bar glow takes the theme's color.
   function applyRenderOptions(): void {
     setKeyGlow(options.keyGlow)
-    setKeyNames(options.keyNames)
+    setKeyNames(options.keyNames, options.onlyC)
     setRailGlow(options.railGlow ? findColor(handChoice.theme)!.main : null)
   }
 
@@ -1674,9 +1680,26 @@ function start(app: HTMLDivElement): void {
     saveOptions()
   })
   const nameButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#key-names button')
+  const onlyCRow = settingsDialog.querySelector<HTMLLabelElement>('#only-c-row')!
+  const onlyCBox = settingsDialog.querySelector<HTMLInputElement>('#only-c')!
   function showNameChoice(): void {
     for (const button of nameButtons) button.setAttribute('aria-checked', String(button.dataset.names === options.keyNames))
+    // "Only label the C keys" is about the names on the keys, so it only shows when those are on
+    onlyCRow.hidden = options.keyNames !== 'keys' && options.keyNames !== 'both'
+    onlyCBox.checked = options.onlyC
   }
+  onlyCBox.addEventListener('change', () => {
+    options.onlyC = onlyCBox.checked
+    applyRenderOptions()
+    saveOptions()
+  })
+  // "Fit the piano to .midi": the keys on screen are the song's octaves instead of all 88 (see pianoRange below).
+  const fitBox = settingsDialog.querySelector<HTMLInputElement>('#fit-range')!
+  fitBox.checked = options.fitRange
+  fitBox.addEventListener('change', () => {
+    options.fitRange = fitBox.checked
+    saveOptions()
+  })
   showNameChoice()
   for (const button of nameButtons) {
     button.addEventListener('click', () => {
@@ -1773,6 +1796,8 @@ function start(app: HTMLDivElement): void {
       keyGlow: true,
       computerKeys: true,
       oneByOne: true,
+      fitRange: false,
+      onlyC: false,
       showBpm: true,
       showNotes: true,
       showMidi: true,
@@ -1790,6 +1815,7 @@ function start(app: HTMLDivElement): void {
     keyGlowBox.checked = options.keyGlow
     computerKeysBox.checked = options.computerKeys
     oneByOneBox.checked = options.oneByOne
+    fitBox.checked = options.fitRange
     learn.oneByOne = options.oneByOne
     showNameChoice()
     applyEarly()
@@ -2197,6 +2223,21 @@ function start(app: HTMLDivElement): void {
     }),
   )
 
+  // The keys on screen. With "Fit the piano to .midi" on, a song in Autoplay or Learn shows only the octaves it uses, worked
+  // out once per song from every note in the file, so it stays the same for the whole song and when tracks are switched.
+  // Free play, the welcome screen, and the setting off show all 88 keys. Notes played outside the shown keys still sound.
+  const fullRange = { low: LOWEST, high: HIGHEST }
+  const fitCache = new WeakMap<FallingNote[], { low: number; high: number }>()
+  function pianoRange(): { low: number; high: number } {
+    if (!options.fitRange || !isSongMode(mode) || rankedNotes.length === 0) return fullRange
+    let range = fitCache.get(rankedNotes)
+    if (!range) {
+      range = fitRange(rankedNotes)
+      fitCache.set(rankedNotes, range)
+    }
+    return range
+  }
+
   function renderFrame(): void {
     // Match the canvas to its on-screen size in real pixels so it stays sharp.
     const dpr = window.devicePixelRatio || 1
@@ -2206,9 +2247,12 @@ function start(app: HTMLDivElement): void {
       canvas.width = Math.round(width * dpr)
       canvas.height = Math.round(height * dpr)
     }
-    if (width !== keysWidth) {
-      keys = layoutKeys(width)
+    const range = pianoRange()
+    if (width !== keysWidth || range.low !== keysLow || range.high !== keysHigh) {
+      keys = layoutKeys(width, range.low, range.high)
       keysWidth = width
+      keysLow = range.low
+      keysHigh = range.high
     }
 
     // Learn mode: stop the song at each chord until I hold all of its notes, then let it go on.

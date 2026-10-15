@@ -62,9 +62,11 @@ export function setSustainGlow(held: boolean): void {
 // Where to write the name of each key (C, C#, D ...): on the keys, on the falling notes, on both, or nowhere.
 export type KeyNames = 'none' | 'keys' | 'notes' | 'both'
 let keyNamesOn: KeyNames = 'none'
+let keyNamesOnlyC = false // names on the keys: only the C keys (C1, C2, C3 ...) get one
 
-export function setKeyNames(where: KeyNames): void {
+export function setKeyNames(where: KeyNames, onlyC = false): void {
   keyNamesOn = where
+  keyNamesOnlyC = onlyC
 }
 
 // The text size for a name on a key or note of this width, in px.
@@ -301,6 +303,7 @@ export function draw(
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     for (const key of keys.values()) {
+      if (keyNamesOnlyC && key.midi % 12 !== 0) continue
       ctx.font = `700 ${labelSize(key.width, key.black)}px 'Plus Jakarta Sans', system-ui, sans-serif`
       ctx.fillStyle = key.black ? 'rgba(255, 255, 255, 0.7)' : 'rgba(20, 20, 30, 0.65)'
       const y = key.black ? blackTop + blackHeight + RAIL_HEIGHT - 9 : keyboardTop + keyboardHeight - 11

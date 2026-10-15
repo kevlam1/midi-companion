@@ -49,9 +49,9 @@ export function keyAt(keys: Map<number, Key>, x: number, y: number, layout: Keyb
 
 // White keys share the width evenly. Each black key is centered on the line
 // between the white keys on either side of it.
-export function layoutKeys(totalWidth: number): Map<number, Key> {
+export function layoutKeys(totalWidth: number, low = LOWEST, high = HIGHEST): Map<number, Key> {
   let whiteCount = 0
-  for (let midi = LOWEST; midi <= HIGHEST; midi++) {
+  for (let midi = low; midi <= high; midi++) {
     if (!isBlack(midi)) whiteCount++
   }
 
@@ -60,7 +60,7 @@ export function layoutKeys(totalWidth: number): Map<number, Key> {
   const keys = new Map<number, Key>()
   let whiteIndex = 0
 
-  for (let midi = LOWEST; midi <= HIGHEST; midi++) {
+  for (let midi = low; midi <= high; midi++) {
     if (isBlack(midi)) {
       keys.set(midi, { midi, black: true, x: whiteIndex * whiteWidth - blackWidth / 2, width: blackWidth })
     } else {
@@ -70,4 +70,29 @@ export function layoutKeys(totalWidth: number): Map<number, Key> {
   }
 
   return keys
+}
+
+// The keys to show for a song with "Fit the piano to .midi" on: from the lowest to the highest note, widened to whole
+// octaves (a C up to a B) so no key is cut off at an edge, and never less than `minSpan` semitones (two octaves) so a song
+// with a few notes doesn't get giant keys. It stays inside the 88 keys. No notes means the full piano.
+export function fitRange(notes: { midi: number }[], minSpan = 24): { low: number; high: number } {
+  if (notes.length === 0) return { low: LOWEST, high: HIGHEST }
+  let lowest = Infinity
+  let highest = -Infinity
+  for (const note of notes) {
+    if (note.midi < lowest) lowest = note.midi
+    if (note.midi > highest) highest = note.midi
+  }
+  let low = Math.max(LOWEST, Math.floor(lowest / 12) * 12) // the C at or below the lowest note
+  let high = Math.min(HIGHEST, Math.floor(highest / 12) * 12 + 11) // the B at or above the highest note
+  let extendHigh = true
+  while (high - low + 1 < minSpan) {
+    const canHigh = high < HIGHEST
+    const canLow = low > LOWEST
+    if (!canHigh && !canLow) break
+    if ((extendHigh && canHigh) || !canLow) high = Math.min(HIGHEST, high + 12)
+    else low = Math.max(LOWEST, low - 12)
+    extendHigh = !extendHigh // add octaves above and below in turn
+  }
+  return { low, high }
 }

@@ -110,7 +110,13 @@ assert.match(dim.main, /^#[0-9a-f]{6}$/)
 assert.equal(new Set(BACKGROUNDS.map((b) => b.id)).size, BACKGROUNDS.length)
 assert.equal(DEFAULT_BACKGROUND, 'black')
 assert.deepEqual(findBackground('black'), { id: 'black', name: 'Black', bg: '#08080c', top: '#0c0c12' })
-assert.equal(findBackground('charcoal').bg, '#181818')
+assert.equal(findBackground('charcoal').bg, '#121212')
+// Charcoal is a neutral gray (no tint), and darker than the first version. The top is only slightly lighter than the bottom.
+for (const hex of [findBackground('charcoal').bg, findBackground('charcoal').top]) {
+  const [r, g, b] = rgbOf(hex)
+  assert.ok(r === g && g === b, `${hex} is a neutral gray`)
+  assert.ok(r <= 0x18, `${hex} is no brighter than #181818`)
+}
 for (const b of BACKGROUNDS) {
   assert.match(b.bg, /^#[0-9a-f]{6}$/, `${b.id} bg`)
   assert.match(b.top, /^#[0-9a-f]{6}$/, `${b.id} top`)

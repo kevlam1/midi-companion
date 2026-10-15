@@ -112,7 +112,7 @@ export interface Background {
 
 export const BACKGROUNDS: Background[] = [
   { id: 'black', name: 'Black', bg: '#08080c', top: '#0c0c12' }, // the original
-  { id: 'charcoal', name: 'Charcoal', bg: '#181818', top: '#1e1e1e' },
+  { id: 'charcoal', name: 'Charcoal', bg: '#121212', top: '#161616' }, // a neutral dark gray, darker and flatter than the first try (#181818 to #1e1e1e)
   { id: 'crimson', name: 'Crimson', bg: '#411014', top: '#5a161c' },
   { id: 'rust', name: 'Rust', bg: '#401e11', top: '#592918' },
   { id: 'amber', name: 'Amber', bg: '#412c10', top: '#5a3d16' },

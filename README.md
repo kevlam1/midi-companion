@@ -43,6 +43,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Drum tracks and notes outside the 88 keys are skipped, and the sustain pedal marks inside a song are ignored.
 
 ### Polish
+- **Made for phones too.** A compact header, a control bar that fits in two rows, a nearly full-screen Settings panel, and a short welcome card. When MIDI can't be used (an unsupported browser, a blocked permission, or a plain `http` address), a small "!" button next to the Tracks button says why.
 - Frosted-glass header and bar, tabs with a sliding highlight, icon buttons, popups that fade and rise in, and custom tooltips in the theme color, all set in the Plus Jakarta Sans typeface.
 - Smooth mouse-wheel scrolling in Settings, the popups and the song lists.
 - The piano sound stays in sync with the picture because both follow the audio clock. Autoplay keeps playing, and the metronome keeps clicking, when you switch to another browser tab. The drawing only looks at notes that can be on screen, so long songs cost no more than short ones.
@@ -59,6 +60,8 @@ npm run dev      # dev server at http://localhost:5173/
 npm run build    # type-check (strict) and build into dist/
 npm run preview  # serve the built dist/ locally
 ```
+
+To try it on a phone on the same Wi-Fi, run `npm run dev -- --host`, find the computer's address (`ipconfig` on Windows), and open `http://THAT-ADDRESS:5173` on the phone. Over plain `http` a phone's browser blocks MIDI and the folder picker, so use the live site for those.
 
 To make a small test file (C4 to C5, one note every 0.5 s at 120 BPM):
 

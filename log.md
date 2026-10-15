@@ -771,6 +771,33 @@ I started Friday's plan early.
 
 ---
 
+## 32. The "!" button for MIDI, a two-row dock, a short welcome card, and trying it on my phone (2026-10-15)
+
+**What I asked for**
+- On a phone, instead of the header saying MIDI keyboards are not supported, a "!" next to the stack (Tracks) icon that says it.
+- The control bar had three rows on a phone held upright. Make it smaller.
+- The welcome menu was too big on a phone, with wasted icon size and space.
+- A way to see a test version on my phone. Claude started two servers and I opened them on my phone.
+- After checking on my phone: Settings, the dock, the sustain chip and the rest were good, but the welcome menu still was not. After a second pass: "looks better".
+
+**What changed**
+- `midi-input.ts` and `main.ts`: a new `warning` message for when MIDI can't be used at all (not supported, blocked, failed). A "!" button next to the Tracks button shows it, and a tap opens a bubble with the message. It is for phones only. On a bigger screen the header still shows the message and the button is hidden. On a phone the long message in the header is hidden while the button is there.
+- `style.css`, the phone blocks at the end: the dock is smaller and is two rows up to 400 px wide (the controls, then the seek slider), with the volume slider hidden and only the mute button left. The welcome card is about 270 px tall instead of 486: the three modes in one row with smaller icons, no title on a short screen, no "No MIDI device detected" line while none is found, and the drop box is one line that says "Open a .mid file" (a swap of wording in `template.ts`, since "drop a file" means nothing on a touch screen).
+- To try it on a phone I ran `npm run dev -- --host` on a spare port, and Python's `http.server` on the built `dist/` folder, and opened the PC's address on my phone. I did not put that address in any file.
+
+**What I checked**
+- `npm run build` passes and all eight test scripts pass.
+- Claude drove headless Chrome at 390, 375, 360 and 320 px wide, and measured the dock (74 px tall, two rows at all four widths) and the welcome card (273 px, no scrolling, drop box in view at 390 x 630, 375 x 560, 360 x 600 and 320 x 568). It also tapped the "!" button with real mouse events: the bubble opens on the first tap and closes on the second.
+- I checked on my own phone twice. It is the first time anything here has been seen on a real device. The "!" button showed in my phone screenshot (my phone connected over plain `http`, where the browser blocks MIDI). I did not tap it to read the bubble.
+- Not checked: touch dragging of the dock and the octave window, and landscape.
+
+**Decisions**
+- The volume slider is hidden on phones up to 400 px wide. The first row of the dock is full at that width, and a phone has its own volume buttons. With the metronome on, the dock needs a third row.
+- The "No MIDI device detected" line is hidden on a phone while no keyboard is found, since that is the normal case there. The "!" button covers the real problems.
+- The "!" button is for phones only. A desktop browser still has room for the message in the header.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -814,6 +841,10 @@ I started Friday's plan early.
 - **Small slips Claude caught before building:** its first rule for which computer key to name where two rows reach a piano key would have picked L over 2 (it noticed on re-reading, and now takes the top row). It used a color variable that does not exist (`--muted`, the real one is `--text-3`), and wrote an octave readout that used a name that did not exist. It also added a check that was not needed.
 - **I was told no browser was possible (Claude was wrong):** all through the project Claude said it could not open a browser. For the phone layout it found Chrome is installed and drove it headless, so the phone layout is the first thing here that was actually seen. Its first dock layout put the volume beside the seek slider, which in the screenshot looked like one long slider. It noticed that from the screenshot and gave the seek slider its own row.
 - **Claude ran `taskkill` on all of Chrome (Claude's mistake):** to clear its own test windows, Claude ran `taskkill /F /IM chrome.exe`, which closes every Chrome process on the computer, including my own browser if it is open. I do not know whether any of my windows were open. I told Claude never to run a taskkill without checking first. Claude also left eight temporary Chrome profile folders in my Temp folder, one per test run, and only found them in the check before this commit. It deleted just the ones named `cdp-` that its script had made, after confirming nothing was running.
+- **The welcome card was still too big on my phone (I found it):** Claude tested it at 390 x 844, but with the browser's own bars my phone shows about 390 x 630, so the song list and the drop box were cut off. I sent a screenshot from my phone. Claude then tested at sizes like mine. Its first fix also let the card shrink to a narrow strip in the middle (the long MIDI line had been what kept it wide), which it saw in its own screenshot and fixed.
+- **The dock was still three rows (Claude caught it from screenshots):** after shrinking the dock, the volume still wrapped onto its own row at 375, 360 and 320 px. Claude measured it, and hid the volume slider on narrow phones, which is a trade I should know about (it says so in the decisions).
+- **A scare about line endings that wasn't real (Claude's slip):** after the push, Claude saw "every line has a carriage return" in the committed files and thought a whole-file line-ending change had gone up. The cause was its own check (`grep` with `$'\r'`, which matched every line in that shell). A diff of the real sizes and Python showed the files are plain and the diffs are normal.
+- **Small slips Claude caught:** one command was refused twice because of a Temp path, so it ran nothing, and a Python edit of `CLAUDE.md` had a quoting error and made no change. Both were noticed from the output and redone. It also noticed before building that the old drop-box rule would have shrunk the new text.
 
 **My own mistakes**
 - Nothing yet.
@@ -850,3 +881,6 @@ I started Friday's plan early.
 - Considered remembering the last size of the octave window when it is switched off and on. Chose to start with every octave each time I switch it on.
 - Considered putting the volume beside the seek slider on a phone. It looked like one slider, so the seek slider has its own row.
 - Left the welcome screen on phones alone for now.
+- Considered keeping the volume slider on a phone by giving it a row of its own. Chose to hide it up to 400 px and keep the mute button, to keep the dock at two rows.
+- Considered showing the MIDI problem as a banner on a phone. Chose a small "!" button that opens a bubble, so it takes almost no room.
+- Considered keeping the welcome card's title on a short phone. Chose to drop it, because the header already has the name.

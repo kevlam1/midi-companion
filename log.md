@@ -736,6 +736,41 @@ I started Friday's plan early.
 
 ---
 
+## 31. Chips, key names, a set octave range, a glow that follows the music, and phones (2026-10-14)
+
+**What I asked for**
+- The Sustain chip to move down under the control bar the way "Waiting for" does, and then under the Waiting display too.
+- The sustain glow along the bar to stop growing taller, and just get brighter while the pedal is held.
+- Key names that can show the computer keys (Z, S, X ...) instead of the notes' names.
+- A setting to show only an octave range I pick, that I can drag and size. Then new names ("Display set octave range", "Fit piano to .midi"), a better description, tidier wording in Settings, all octaves highlighted at first, and the spacing under it fixed.
+- A better background glow.
+- The header, Settings and the control bar to fit on a phone. The piano keys were fine.
+- (Earlier in the day) a darker Charcoal.
+
+**What changed**
+- `main.ts`: `placePedal()` moves the Sustain chip just past the control bar (when it is a row) and past the Waiting display, whichever is in its way.
+- `renderer.ts`: the sustain glow keeps its height and thickness and only gets brighter. `setKeyNames` can write the computer key instead of the note, and the names follow the arrow keys' octave.
+- `computer-keys.ts`: `keyCapForNote(midi, octave)`, the opposite of `noteForKey`. Where two rows reach the same key (C5 to E5) the top row is named.
+- `keyboard.ts` and `main.ts`: the set octave range. Nine octave blocks (block 4 is C4 to B4, the first is only A0 to B0, the last only C8). In Settings a strip of tiles has a window with two edges I drag to size it, a middle to move it, and tiles to click. It shows in every mode and wins over "Fit piano to .midi". Switching it on starts with every octave in the window.
+- The background glow follows the music: the frame loop eases how many keys are lit into `--glow-level`, so the light at the top swells with the notes and a second light rises from the piano. The same switch turns it all off.
+- `style.css`: a block for phones (600 px, 360 px and 340 px), put last so it wins. Header: the title with the buttons beside it, then tabs, then chips. Control bar: wraps, with the seek slider on a row of its own. Settings: nearly full-screen, the two hands' colors stacked.
+- Settings wording: descriptions start with a capital and have no full stop. Charcoal is `#121212` to `#161616`.
+
+**What I checked**
+- `npm run build` passes, and `test-keys.mjs` and `test-colors.mjs` pass, with new checks for `keyCapForNote` (every named key really plays that note at every octave shift) and for the octave blocks (every range starts on a C or A0 and ends on a B or C8).
+- The phone layout was seen for the first time: Claude ran headless Chrome at 390, 360 and 320 px wide and looked at screenshots of the header, the control bar (with and without the metronome), Learn, and all of Settings. It also measured that nothing sticks out sideways in the page or in Settings at all three widths.
+- Not seen in a browser: the dragging of the octave window, the computer-key names, the sustain chip's new place, the sustain glow, the music-following glow and the Charcoal change. Not checked at all: a real phone, touch dragging, and landscape.
+
+**Decisions**
+- The set octave range wins over "Fit piano to .midi", and works in Free play and the welcome screen too.
+- Turning the set octave range on always starts with all the octaves, even if I sized it before.
+- "Only label the C keys" hides when the names are the computer keys.
+- On a phone the seek slider has its own row, so it can't be mistaken for the volume slider, and the volume percentage is hidden.
+- The welcome screen on a phone looked cramped at the top (the first mode button partly under the header). I left it alone because I only asked about the header, Settings and the control bar.
+- At 320 px in Learn with two hands, the Settings button drops onto its own line. Left as it is.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -769,10 +804,16 @@ I started Friday's plan early.
 - **The inspector killed the site (I found it):** opening the browser's inspector mid-song froze the page. My screenshot of the console showed the error. A sliver-sized canvas made the key widths negative, a canvas call threw, and because it threw inside the animation frame before the next frame was requested, the loop died for good. That weakness had been there from the first version: any error in a frame stopped the page. Claude fixed both (section 28).
 - **Windows line endings (Claude's slip):** one of Claude's Python edit scripts wrote Windows line endings into some files, because on Windows a file opened for writing converts line breaks. Claude found it when an exact-match edit failed on `renderer.ts`, and its later edits normalize the endings. Nothing was broken.
 - **The folder was missing from the welcome screen (I found it):** Claude added the welcome tab for "Your folder" but only showed it once a folder had already been chosen. Nothing on the welcome screen could choose one, so it never appeared. I sent a screenshot of the welcome screen, and Claude made the tab always visible with a button to choose a folder (section 29).
+- **Charcoal was too bright (I noticed):** Claude made the gray-black background `#181818` (as I had suggested), with a lighter `#1e1e1e` at the top, and I said it looked weirdly bright. Claude could not see it, and found that the theme's amber glow at the top of the page also adds a brownish bright patch over a gray. It made Charcoal a darker, flatter `#121212` to `#161616`, and said the Background glow switch is the other thing to check.
 - **Slips Claude caught itself:** it removed `mkdirSync` from an import in `make-edge-midis.mjs` and broke the script, which running it showed. It also wrote a broken font line in `renderer.ts` because of PowerShell quoting, which reading it back showed. And a check command of its own failed on a stray quote before it ran anything.
 - **The metronome was tied to playback:** I said it should "just run the moment it is turned on, separate from me playing or not", and that Free play should have it. Claude had built it to follow the song's clock and hidden it in Free play. It reworked it, and then I asked for both modes (section 26).
 - **A helper that wrecked `style.css`:** a PowerShell helper Claude wrote broke when it was given a single replacement, and it replaced every `#` and `.` in the stylesheet with the letter "d". The build still passed, because broken CSS is not a build error. Claude caught it from an error message, kept a copy of the broken file outside the project, restored the file from the last commit and re-applied its own changes. It was never committed. Earlier, the same kind of PowerShell quoting silently blanked some `${...}` text and turned backticks in comments into stray characters. Claude scanned all the source files for both afterward.
 - **Several rounds on the clipped digit:** the last digit in the volume and BPM boxes was cut off, and Claude tried a few causes in turn (fixed widths, then padding, then the dock squeezing its items, then tabular numbers). It never saw the clipping, so each was a reading of the layout, and the last fix is unconfirmed.
+- **The Sustain chip only dodged the bar (I noticed):** Claude moved the Sustain chip out of the control bar's way, as I asked, but not out of the Waiting display's. I told it that it should also move under "Waiting for" in Learn, and Claude made it dodge both.
+- **The spacing under the octave setting (I noticed):** Claude put the octave strip between two Settings rows, and the stylesheet only adds a gap between two rows that sit directly next to each other. So "Tempo" had no gap above it. I pointed it out, and Claude gave the row after the strip its own gap.
+- **Small slips Claude caught before building:** its first rule for which computer key to name where two rows reach a piano key would have picked L over 2 (it noticed on re-reading, and now takes the top row). It used a color variable that does not exist (`--muted`, the real one is `--text-3`), and wrote an octave readout that used a name that did not exist. It also added a check that was not needed.
+- **I was told no browser was possible (Claude was wrong):** all through the project Claude said it could not open a browser. For the phone layout it found Chrome is installed and drove it headless, so the phone layout is the first thing here that was actually seen. Its first dock layout put the volume beside the seek slider, which in the screenshot looked like one long slider. It noticed that from the screenshot and gave the seek slider its own row.
+- **Claude ran `taskkill` on all of Chrome (Claude's mistake):** to clear its own test windows, Claude ran `taskkill /F /IM chrome.exe`, which closes every Chrome process on the computer, including my own browser if it is open. I do not know whether any of my windows were open. I told Claude never to run a taskkill without checking first. Claude also left eight temporary Chrome profile folders in my Temp folder, one per test run, and only found them in the check before this commit. It deleted just the ones named `cdp-` that its script had made, after confirming nothing was running.
 
 **My own mistakes**
 - Nothing yet.
@@ -805,3 +846,7 @@ I started Friday's plan early.
 - Left Black and Charcoal out of the Theme row.
 - Considered resetting the piano whenever the tab comes back. That caused the choppy quick switch, so nothing is reset unless the audio had stopped.
 - Considered CSS `scroll-behavior: smooth` for the scroll areas. It does not smooth the mouse wheel, so the smoothing is done in code (`smooth-scroll.ts`).
+- Considered showing the octave range only in Autoplay and Learn, like "Fit piano to .midi". Chose every mode, since I pick it myself.
+- Considered remembering the last size of the octave window when it is switched off and on. Chose to start with every octave each time I switch it on.
+- Considered putting the volume beside the seek slider on a phone. It looked like one slider, so the seek slider has its own row.
+- Left the welcome screen on phones alone for now.

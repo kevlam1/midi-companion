@@ -716,6 +716,26 @@ I started Friday's plan early.
 
 ---
 
+## 30. Fit the piano to the song, and only labelling the C keys (2026-10-14)
+
+**What I asked for**
+- A setting that shows only the octaves a song needs, for the whole song, so a song in octaves 3 to 6 shows just those. I named it "Fit the piano to .midi". Then, when key names are on the keys, a second setting to hide every letter except the C keys (C1, C2, C3 and so on).
+
+**What changed**
+- `keyboard.ts`: `layoutKeys` takes a low and high key, so the keys fill the width at any range, and `fitRange` works the range out from a song's notes. It goes from a C up to a B so no key is cut off, is at least two octaves so a song with a few notes doesn't get huge keys, and stays inside the 88 keys. Everything that draws or clicks keys already read the one key layout, so the falling notes, clicks, key names and Free play's rising notes follow without changes.
+- The range comes from every note in the file, once per song, so it doesn't jump when a track is switched. Free play and the welcome screen keep all 88 keys. A note played outside the shown keys still sounds but lights nothing.
+- "Only label the C keys" appears under Key names only for "On the keys" and "On both", and only changes names on the keys. Both new switches are off by default, remembered, and covered by the reset-all button.
+
+**What I checked**
+- `npm run build` passes and all eight test scripts pass. `test-keys.mjs` now checks `fitRange` on chosen cases (including the top and bottom of the piano) and on 300 random note sets, and that a range's layout fills the width exactly.
+- Claude could not open a browser, so how it looks has not been seen. In particular the change of keyboard when switching tabs happens at once, with no animation.
+
+**Decisions**
+- The range follows the whole file, not the tracks that are switched on.
+- Notes outside the shown range are not auto-shown. They are silent on screen.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**

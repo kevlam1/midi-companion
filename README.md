@@ -20,7 +20,8 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **A theme color** recolors the glow behind the notes and the whole interface: tabs, pills, buttons, switches, sliders, the play button, and the guides that show where the control bar will snap.
 - **A background color.** Black (the original), Charcoal, ten deep colors, or White, each shown as a small preview with your two note colors on it. On White, the interface keeps its dark glass and the notes get dark outlines so everything stays readable.
 - **Lights you can turn down.** Separate switches for the background glow, the glow along the black bar above the piano, the light that rises from a pressed key, and the extra glow along the bar while the sustain pedal is held.
-- **Key names** on the keys, on the falling notes, on both, or off.
+- **Key names** on the keys, on the falling notes, on both, or off. For names on the keys there's a second switch to label only the C keys (C1, C2, C3 and so on).
+- **Fit the piano to .midi.** A switch that shows only the octaves a song actually uses, from its lowest note to its highest, so the keys are wider. A song that stays in octaves 3 to 6 shows just those, for the whole song.
 - **Clear the header.** Hide the tempo, note count, MIDI keyboard and Sustain chips one by one.
 - Everything is remembered in your browser, and a button at the bottom of Settings resets it all if you hold it down.
 

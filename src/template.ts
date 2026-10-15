@@ -29,6 +29,7 @@ const icons = {
   swap: svg('<path d="M7 4 3.5 7.5 7 11"/><path d="M3.5 7.5H17"/><path d="M17 13l3.5 3.5L17 20"/><path d="M20.5 16.5H7"/>'),
   metronome: svg('<path d="M9.5 3h5l3.5 18H6z"/><path d="M12 16.5 15.5 8"/>'),
   close: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+  warning: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.6" r="0.7" fill="currentColor"/>'),
   grip:
     '<svg class="icon grip-dots" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
     '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/>' +
@@ -69,6 +70,7 @@ export const appHtml = `
           <button data-hand="right" aria-pressed="false">Right hand</button>
           <button data-hand="left" aria-pressed="false">Left hand</button>
         </div>
+        <button id="midi-warning" class="icon-btn" hidden aria-label="MIDI keyboards are not available">${icons.warning}</button>
         <button id="tracks-button" class="btn" disabled>${icons.layers}<span class="label">Tracks</span></button>
         <button id="open-song" class="btn">${icons.upload}<span class="label">Open song</span></button>
         <button id="settings-button" class="icon-btn" aria-haspopup="dialog" aria-label="Settings" title="Settings">${icons.sliders}</button>
@@ -84,6 +86,7 @@ export const appHtml = `
     <div id="transient">
       <span id="pedal"></span>
     </div>
+    <div id="midi-warning-bubble" popover role="status"></div>
   </div>
   <div id="stage-area">
     <canvas id="stage"></canvas>
@@ -138,8 +141,8 @@ export const appHtml = `
         </div>
         <div id="welcome-drop" class="drop-box compact" tabindex="0" role="button" style="--i: 4">
           ${icons.upload}
-          <strong>Drop a .mid file anywhere</strong>
-          <span>or click to browse</span>
+          <strong><span class="when-wide">Drop a .mid file anywhere</span><span class="when-narrow">Open a .mid file</span></strong>
+          <span class="browse-hint">or click to browse</span>
         </div>
         <input type="file" id="welcome-file" accept=".mid,.midi" hidden />
       </div>

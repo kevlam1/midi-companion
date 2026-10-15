@@ -6,11 +6,14 @@ export interface MidiHandlers {
   noteOff(midi: number): void
   sustain(down: boolean): void // the sustain pedal went down or up
   status(text: string, devices?: string[]): void // a short message for the toolbar, and the names of the keyboards found
+  warning(text: string | null): void // why MIDI can't be used at all (not supported, blocked, failed), or null when it can
 }
 
 export async function startMidiInput(handlers: MidiHandlers): Promise<void> {
   if (!('requestMIDIAccess' in navigator)) {
-    handlers.status('MIDI keyboards are not supported in this browser.')
+    const text = 'MIDI keyboards are not supported in this browser.'
+    handlers.status(text)
+    handlers.warning(text)
     return
   }
 
@@ -20,9 +23,12 @@ export async function startMidiInput(handlers: MidiHandlers): Promise<void> {
   } catch (error) {
     console.error('MIDI access failed:', error)
     const blocked = error instanceof DOMException && error.name === 'NotAllowedError'
-    handlers.status(blocked ? 'MIDI access was blocked. Allow it in the browser to use a keyboard.' : "Couldn't start MIDI input.")
+    const text = blocked ? 'MIDI access was blocked. Allow it in the browser to use a keyboard.' : "Couldn't start MIDI input."
+    handlers.status(text)
+    handlers.warning(text)
     return
   }
+  handlers.warning(null)
 
   // Listen to every connected keyboard. Runs again whenever one is plugged in or unplugged.
   function listen(): void {

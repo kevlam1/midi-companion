@@ -2573,6 +2573,38 @@ function start(app: HTMLDivElement): void {
 
   requestAnimationFrame(frame)
 
+  // When MIDI can't be used at all (not supported, blocked, failed), a small "!" button sits next to the Tracks button.
+  // On a phone it replaces the long message in the header (style.css), and a tap on it shows the message in a bubble.
+  const midiWarning = app.querySelector<HTMLButtonElement>('#midi-warning')!
+  const midiBubble = app.querySelector<HTMLDivElement>('#midi-warning-bubble')!
+  function showMidiWarning(text: string | null): void {
+    midiWarning.hidden = text === null
+    app.dataset.midiWarning = String(text !== null)
+    midiBubble.textContent = text ?? ''
+    midiWarning.title = text ?? ''
+    if (text === null) midiBubble.hidePopover()
+  }
+  // A popover closes itself when a press lands outside it, and the button counts as outside. So note whether it was
+  // open when the press started, or a second tap on the button would close it and straight away open it again.
+  let bubbleWasOpen = false
+  midiWarning.addEventListener('pointerdown', () => {
+    bubbleWasOpen = midiBubble.matches(':popover-open')
+  })
+  midiWarning.addEventListener('click', () => {
+    if (bubbleWasOpen) {
+      bubbleWasOpen = false
+      midiBubble.hidePopover()
+      return
+    }
+    midiBubble.showPopover()
+    // right under the button, kept inside the screen
+    const button = midiWarning.getBoundingClientRect()
+    const margin = 12
+    const left = Math.max(margin, Math.min(button.right - midiBubble.offsetWidth, innerWidth - midiBubble.offsetWidth - margin))
+    midiBubble.style.left = `${left}px`
+    midiBubble.style.top = `${button.bottom + 8}px`
+  })
+
   // My MIDI keyboard plays the same live piano as the mouse, and its keys light up the same way.
   // A MIDI key press doesn't count as a click, so the first click anywhere on the page turns the audio on.
   document.addEventListener(
@@ -2619,6 +2651,7 @@ function start(app: HTMLDivElement): void {
           ? `MIDI keyboard detected: ${devices.join(', ')}`
           : 'No MIDI device detected. Keyboard, mouse and touch work too.'
     },
+    warning: showMidiWarning,
   })
 
   // Debug: did every note get queued before it was due?

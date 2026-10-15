@@ -2714,6 +2714,39 @@ html[data-bg-light] #pedal {
   margin: 0.55rem 0 0;
 }
 
+/* ---------- MIDI warning: a "!" button next to the Tracks button, only on phones ---------- */
+/* It shows when MIDI can't be used at all (not supported, blocked, failed). On a phone it stands in for the long message
+   in the header; on a bigger screen the message is shown in the header as before and the button stays hidden. */
+#midi-warning {
+  border-color: rgb(255 184 112 / 0.5);
+  color: #ffb870;
+}
+
+#midi-warning[hidden] {
+  display: none;
+}
+
+#midi-warning-bubble {
+  position: fixed;
+  inset: auto;
+  max-width: min(17rem, calc(100vw - 1.5rem));
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgb(255 184 112 / 0.45);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgb(32 32 45 / 0.98), rgb(18 18 26 / 0.98));
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.5);
+}
+
+@media (min-width: 601px) {
+  #midi-warning {
+    display: none;
+  }
+}
+
 /* ---------- Phones ---------- */
 /* This block is last on purpose: it has to win over the rules above it. The piano keys are not touched. */
 @media (max-width: 600px) {
@@ -2882,5 +2915,248 @@ html[data-bg-light] #pedal {
 @media (max-width: 340px) {
   .color-split .swatches {
     grid-template-columns: repeat(6, 30px);
+  }
+}
+
+/* ---------- Phones, part 2: the MIDI "!" button, a smaller dock, a compact welcome card ---------- */
+/* Still last on purpose, so it wins over everything above. The piano keys are not touched. */
+@media (max-width: 600px) {
+  /* The "!" button takes the place of the long MIDI message in the header. */
+  #app[data-midi-warning='true'] #midi {
+    display: none;
+  }
+
+  /* The control bar as a row, smaller, so it fits in two rows (the controls, then the seek slider). */
+  #controls:not([data-vertical='true']) {
+    gap: 0.3rem 0.4rem;
+    padding: 0.35rem 0.5rem;
+  }
+
+  #controls:not([data-vertical='true']) .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  #controls:not([data-vertical='true']) .play-btn {
+    width: 38px;
+    height: 38px;
+    margin-right: 0;
+  }
+
+  #controls:not([data-vertical='true']) #restart {
+    margin-right: 0;
+  }
+
+  #controls:not([data-vertical='true']) #speed {
+    min-width: 2.5rem;
+    height: 26px;
+    padding: 0 0.4rem;
+    font-size: 0.72rem;
+  }
+
+  #controls:not([data-vertical='true']) #time {
+    font-size: 0.72rem;
+  }
+
+  #controls:not([data-vertical='true']) #volume-group {
+    gap: 0;
+  }
+
+  #volume {
+    width: 44px;
+  }
+
+  /* The welcome card: a tight card, the three modes in one row with small icons, and less space between the parts. */
+  #welcome {
+    align-items: safe center;
+    padding: calc(var(--header-height, 0px) + 0.5rem) 0.6rem 0.5rem;
+  }
+
+  .welcome-card {
+    gap: 0.75rem;
+    padding: 1rem 0.9rem 0.9rem;
+    border-radius: 22px;
+  }
+
+  .welcome-title {
+    gap: 0.25rem;
+  }
+
+  .title-main {
+    font-size: 1.5rem;
+  }
+
+  .title-sub {
+    font-size: 0.62rem;
+    letter-spacing: 0.24em;
+  }
+
+  .welcome-modes {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .welcome-modes button {
+    flex-direction: column;
+    gap: 0.4rem;
+    justify-content: center;
+    min-width: 0;
+    padding: 0.65rem 0.25rem 0.6rem;
+    border-radius: 14px;
+    font-size: 0.8rem;
+  }
+
+  .welcome-modes .mode-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .welcome-modes .mode-icon .icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  #midi-pill {
+    height: auto;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.74rem;
+  }
+
+  .welcome-songs {
+    gap: 0.45rem;
+  }
+
+  .welcome-songs .library-list {
+    max-height: 6.5rem;
+  }
+
+  .drop-box.compact {
+    padding: 0.6rem 0.8rem;
+  }
+
+  .drop-box.compact .icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* ---------- Phones, part 3: the narrowest and shortest screens ---------- */
+@media (max-width: 340px) {
+  /* four header buttons (with the "!" button) and the title have to share one row */
+  #toolbar {
+    gap: 0.25rem;
+  }
+
+  #toolbar .btn,
+  #toolbar .icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* the dock: no total song time, and a shorter volume slider, so the volume stays on the first row */
+  #time-total,
+  .time-sep {
+    display: none;
+  }
+
+  #volume {
+    width: 36px;
+  }
+}
+
+@media (max-width: 600px) and (max-height: 700px) {
+  /* a short screen: the header already has the title, so the welcome card skips its own and keeps the rest in view */
+  .welcome-title {
+    display: none;
+  }
+
+  .welcome-songs .library-list {
+    max-height: 4.5rem;
+  }
+}
+
+@media (max-width: 400px) {
+  /* the first row of the dock is full on a phone this narrow, so the volume keeps only its speaker (mute) button and the
+     volume slider is hidden. The phone's own volume buttons still work. */
+  #volume {
+    display: none;
+  }
+}
+
+/* ---------- Phones, part 4: a shorter welcome card ---------- */
+/* The text that only makes sense with a mouse ("Drop a file anywhere") is swapped for a short one on a phone. */
+.when-narrow {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .when-wide {
+    display: none;
+  }
+
+  .when-narrow {
+    display: inline;
+  }
+
+  /* nothing detected is the normal case on a phone (the "!" button explains real problems), so the line is left out */
+  #midi-pill[data-detected='false'] {
+    display: none;
+  }
+
+  .welcome-card {
+    gap: 0.6rem;
+    padding: 0.8rem 0.8rem 0.8rem;
+  }
+
+  .welcome-modes button {
+    gap: 0.3rem;
+    padding: 0.5rem 0.25rem 0.5rem;
+  }
+
+  .welcome-modes .mode-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .welcome-modes .mode-icon .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .welcome-songs {
+    gap: 0.35rem;
+  }
+
+  .welcome-songs .library-item {
+    padding: 0.45rem 0.75rem;
+  }
+
+  /* the drop box becomes one line: the small icon, then "Open a .mid file" */
+  .drop-box.compact {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .drop-box.compact .icon {
+    margin-bottom: 0;
+  }
+
+  .drop-box.compact .browse-hint {
+    display: none;
+  }
+}
+
+/* the two wordings inside the drop box's heading keep the heading's size */
+.drop-box.compact strong span {
+  font-size: inherit;
+}
+
+@media (max-width: 600px) {
+  .welcome-card {
+    width: 100%; /* the long MIDI line used to keep the card wide; without it the card shrinks to its content */
   }
 }

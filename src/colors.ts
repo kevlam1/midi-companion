@@ -9,21 +9,26 @@ export interface NoteColor {
   noTheme?: boolean // too dark to be the interface's accent color on a dark page, so the Theme row leaves it out
 }
 
-// Amber and Sky are the original colors, and the defaults. The other dark shades come from the main color:
-// lightness down by 0.2 and saturation to 0.65 of what it was.
+// Amber and Sky are the original colors, and the defaults, and their dark shades were picked by eye. Every other dark
+// shade comes from its main color: lightness down by 0.2 and saturation to 0.65 of what it was (checked on all of them
+// when Orange, Green, Magenta and Silver were added). The order is the order of the swatches: eighteen, three rows of six.
 export const NOTE_COLORS: NoteColor[] = [
   { id: 'red', name: 'Red', main: '#ff5757', dark: '#c62a2a' },
   { id: 'coral', name: 'Coral', main: '#ff8a6b', dark: '#d35331' },
+  { id: 'orange', name: 'Orange', main: '#ff9a3d', dark: '#b16825' },
   { id: 'amber', name: 'Amber', main: '#ffb870', dark: '#e08a3c' },
   { id: 'yellow', name: 'Yellow', main: '#ffe066', dark: '#d2b12d' },
   { id: 'lime', name: 'Lime', main: '#b8e65a', dark: '#7fa139' },
+  { id: 'green', name: 'Green', main: '#4fd96b', dark: '#388a49' },
   { id: 'mint', name: 'Mint', main: '#5fe0b4', dark: '#3d9c7c' },
   { id: 'teal', name: 'Teal', main: '#4fd1d9', dark: '#38858a' },
   { id: 'sky', name: 'Sky', main: '#6fb7ff', dark: '#3979b8' },
   { id: 'darkblue', name: 'Dark blue', main: '#4a6cf7', dark: '#2c46af' },
   { id: 'violet', name: 'Violet', main: '#b794ff', dark: '#7f53da' },
+  { id: 'magenta', name: 'Magenta', main: '#f06bd6', dark: '#bb3aa2' },
   { id: 'rose', name: 'Rose', main: '#ff7a9c', dark: '#d63d64' },
   { id: 'white', name: 'White', main: '#f4f4f8', dark: '#babacc' },
+  { id: 'silver', name: 'Silver', main: '#b4b6c6', dark: '#808294' },
   { id: 'charcoal', name: 'Charcoal', main: '#4a4a52', dark: '#2e2e35', noTheme: true },
   { id: 'black', name: 'Black', main: '#1b1b22', dark: '#0a0a0e', noTheme: true },
 ]
@@ -99,9 +104,10 @@ export function parseSavedColors(raw: string | null): ColorChoice {
   }
 }
 
-// Background colors: the page behind the notes. A fixed list of dark tones: the original black, a gray-black, and
-// a deep, saturated version of ten of the note colors' families, dark enough for white text and bright notes to read on every one. `bg` is the main color and
-// `top` the slightly lighter one at the top of the gradient.
+// Background colors: the page behind the notes. A fixed list: the original black, two cool or warm gray-blacks, a deep,
+// saturated version of the note colors' families (dark enough for white text and bright notes to read on every one),
+// and three light ones. `bg` is the main color and `top` the slightly lighter one at the top of the gradient.
+// Eighteen, three rows of six.
 export interface Background {
   id: string
   name: string
@@ -113,6 +119,8 @@ export interface Background {
 export const BACKGROUNDS: Background[] = [
   { id: 'black', name: 'Black', bg: '#08080c', top: '#0c0c12' }, // the original
   { id: 'charcoal', name: 'Charcoal', bg: '#121212', top: '#161616' }, // a neutral dark gray, darker and flatter than the first try (#181818 to #1e1e1e)
+  { id: 'slate', name: 'Slate', bg: '#161c26', top: '#1d2532' }, // a cool blue-gray, calmer than the saturated blues
+  { id: 'espresso', name: 'Espresso', bg: '#2a1b14', top: '#3a261c' }, // a warm dark brown
   { id: 'crimson', name: 'Crimson', bg: '#411014', top: '#5a161c' },
   { id: 'rust', name: 'Rust', bg: '#401e11', top: '#592918' },
   { id: 'amber', name: 'Amber', bg: '#412c10', top: '#5a3d16' },
@@ -121,9 +129,12 @@ export const BACKGROUNDS: Background[] = [
   { id: 'teal', name: 'Teal', bg: '#103e41', top: '#16555a' },
   { id: 'ocean', name: 'Ocean', bg: '#102a41', top: '#163a5a' },
   { id: 'cobalt', name: 'Cobalt', bg: '#101c41', top: '#16265a' },
+  { id: 'indigo', name: 'Indigo', bg: '#1b1448', top: '#281d66' }, // bluer than Violet, deeper than Cobalt
   { id: 'violet', name: 'Violet', bg: '#27143d', top: '#361c54' },
   { id: 'plum', name: 'Plum', bg: '#3c1531', top: '#531d43' },
   { id: 'white', name: 'White', bg: '#e8e8ee', top: '#fafafc', light: true },
+  { id: 'paper', name: 'Paper', bg: '#ece4d2', top: '#f7f1e3', light: true }, // a warm off-white, easier on the eyes
+  { id: 'mist', name: 'Mist', bg: '#dde5ee', top: '#eef3f8', light: true }, // a cool light blue-gray
 ]
 
 export const DEFAULT_BACKGROUND = 'black'

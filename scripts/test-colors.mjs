@@ -78,7 +78,10 @@ assert.deepEqual(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', 
   dimLeft: false,
   glow: true,
 })
-// the glow is on unless it is exactly false\nassert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', glow: false })).glow, false)\nassert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', glow: 0 })).glow, true)\n// dimLeft has to be exactly true
+// the glow is on unless it is exactly false
+assert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', glow: false })).glow, false)
+assert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', glow: 0 })).glow, true)
+// dimLeft has to be exactly true
 assert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', dimLeft: 'yes' })).dimLeft, false)
 // the theme may be the same color as a hand
 assert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', theme: 'rose' })).theme, 'rose')
@@ -137,7 +140,45 @@ assert.ok(THEME_COLORS.every((c) => !c.noTheme))
 assert.equal(THEME_COLORS.length, NOTE_COLORS.length - 2)
 assert.equal(parseSavedColors(JSON.stringify({ right: 'black', left: 'charcoal', theme: 'rose' })).right, 'black') // as hand colors: fine
 assert.equal(parseSavedColors(JSON.stringify({ right: 'rose', left: 'mint', theme: 'black' })).theme, 'amber') // as the theme: no
-// 9. White background is the one light background.
-assert.deepEqual(BACKGROUNDS.filter((b) => b.light).map((b) => b.id), ['white'])
+// 9. White, Paper and Mist are the light backgrounds.
+assert.deepEqual(BACKGROUNDS.filter((b) => b.light).map((b) => b.id), ['white', 'paper', 'mist'])
+
+// 10. The lists are laid out in even rows: eighteen note colors (three rows of six), sixteen theme colors, eighteen backgrounds.
+assert.equal(NOTE_COLORS.length, 18)
+assert.equal(THEME_COLORS.length, 16)
+assert.equal(BACKGROUNDS.length, 18)
+// The colors that were there before keep their ids, so a saved choice still loads.
+for (const id of ['red', 'coral', 'amber', 'yellow', 'lime', 'mint', 'teal', 'sky', 'darkblue', 'violet', 'rose', 'white', 'charcoal', 'black']) {
+  assert.ok(findColor(id), `${id} is still there`)
+}
+for (const id of ['black', 'charcoal', 'crimson', 'rust', 'amber', 'olive', 'emerald', 'teal', 'ocean', 'cobalt', 'violet', 'plum', 'white']) {
+  assert.ok(findBackground(id), `${id} background is still there`)
+}
+// The new ones load as hand colors and (all but none of them are dark) as the theme.
+for (const id of ['orange', 'green', 'magenta', 'silver']) {
+  assert.equal(parseSavedColors(JSON.stringify({ right: id, left: 'sky', theme: id })).theme, id, `${id} can be the theme`)
+}
+for (const id of ['slate', 'espresso', 'indigo', 'paper', 'mist']) assert.equal(parseSavedBackground(id), id, `${id} background loads`)
+
+// 11. The dark shade of every color (but the two original hand-picked ones) follows the rule: lightness down 0.2, saturation x 0.65.
+function hsl(hex) {
+  const [r, g, b] = rgbOf(hex).map((v) => v / 255)
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min
+  let h = 0, s = 0
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1))
+    h = (max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60
+    if (h < 0) h += 360
+  }
+  return [h, s, l]
+}
+for (const color of NOTE_COLORS) {
+  if (['amber', 'sky', 'coral', 'yellow', 'lime', 'teal', 'darkblue', 'white', 'charcoal', 'black'].includes(color.id)) continue // picked earlier by eye
+  const [h, s, l] = hsl(color.main)
+  const [dh, ds, dl] = hsl(color.dark)
+  assert.ok(Math.abs(dl - (l - 0.2)) < 0.01, `${color.id}: dark is 0.2 lighter-down`)
+  assert.ok(Math.abs(ds - s * 0.65) < 0.02, `${color.id}: dark saturation is 0.65 of main`)
+  assert.ok(Math.min(Math.abs(dh - h), 360 - Math.abs(dh - h)) < 3, `${color.id}: dark keeps the hue`)
+}
 
 console.log('All note color checks passed.')

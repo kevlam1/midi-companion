@@ -13,7 +13,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **Practice one hand.** For a song with two tracks, the hand picker waits for just the right hand or just the left, and the other hand plays by itself and lights its keys. Which track is which hand is a guess from pitch, since MIDI files don't say.
 - **Limited octave range.** For a MIDI keyboard with fewer keys than the song needs. Switch it on in Settings, then drag the two bars on the piano to the keys you can reach. Notes outside the bars play by themselves, the song never waits for them, and they count as hits for your score, which keeps going while you move the bars. Pick how the bars look: a full bar with a grip, a thin line, a dashed line, a small marker above the keys, or only the shading. The bars can cover the whole screen or just the piano's keys, and the shading outside them can be turned off or turned down.
 - **Turn tracks off.** The Tracks popup lists every track with its instrument, MIDI channel, pitch range and note count, and each one can be switched off. It leaves the falling notes, the sound, and what Learn waits for.
-- **A score in the control bar.** A combo counter, a running percentage (100% until you play a wrong note), and counters for correct notes and misses, which can be switched off in Settings. Restart for a clean score.
+- **A score in the control bar.** A combo counter, a running percentage (100% until you play a wrong note), and counters for correct notes and misses, which can be switched off in Settings. A key that isn't in the chord is a miss and breaks the combo. Pressing the right key a little too early isn't punished: it just doesn't count until you press it inside the timing window. Restart for a clean score.
 - A **"Waiting for" display** names the notes the song is waiting on. Drag it anywhere, or let it snap to two spots (under the header, above the piano). It steps out of the way of the control bar.
 - Learn pauses when the browser tab is hidden, so it never runs away from you.
 
@@ -27,6 +27,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **Display set octave range.** Pick the octaves yourself, in every mode. A strip of nine octave tiles has a window you drag by its edges to size it or by its middle to move it, and the piano changes as you drag. It takes priority over Fit piano to .midi.
 - **Particles.** Eight styles fly from each key as it lights up, all with a soft glow: Sparks, glowing Embers that cool as they rise, blinking Fireflies, twinkling Stars, Bubbles, Confetti, Stardust glitter and long light Streaks. Sliders set the intensity (25% to 200%) and how high they travel (50% to 300%), a switch keeps them in a tight column above their key (on by default), and they take each hand's note color unless you pick your own for each hand. Every note gets its particles, even in a dense song. Embers at 150% are on from the start.
 - **Clear the header.** Hide the tempo, note count, MIDI keyboard and Sustain chips one by one.
+- **Settings in groups.** Colors, Lights, Particles, Key names, Piano range, Learn timing, Learn options, Header chips, Songs and Computer keyboard, so related switches sit together.
 - Everything is remembered in your browser, and a button at the bottom of Settings resets it all if you hold it down.
 
 ### Play it your way
@@ -51,8 +52,11 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - Smooth mouse-wheel scrolling in Settings, the popups and the song lists.
 - The piano sound stays in sync with the picture because both follow the audio clock. Autoplay keeps playing, and the metronome keeps clicking, when you switch to another browser tab. The drawing only looks at notes that can be on screen, so long songs cost no more than short ones.
 
-## Not built yet
-- Other polish.
+## Known limits
+- MIDI keyboards need a browser with Web MIDI (Chrome, Edge or Firefox, on `https` or `localhost`). Safari doesn't have it, but the on-screen keys and the computer keyboard still work.
+- "Your own folder" needs Chrome or Edge.
+- The sound and the picture are in sync on the computer it was built on. Speaker delay isn't reported by the browser, so it isn't corrected for.
+- Which track is the right hand is a guess from pitch, so a song with crossing hands may need its tracks switched in the Tracks popup.
 
 ## Run it locally
 You need Node.js (the project was built on Node 24).

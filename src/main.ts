@@ -1128,27 +1128,32 @@ function start(app: HTMLDivElement): void {
     samplesList.hidden = !open
     samplesToggle.setAttribute('aria-expanded', String(open))
   })
-  for (const entry of samples) {
-    const button = document.createElement('button')
-    button.className = 'library-item'
-    const title = document.createElement('strong')
-    title.textContent = prettyName(entry.file)
-    button.append(title)
-    button.title = entry.file
-    button.addEventListener('click', async () => {
-      try {
-        const response = await fetch(entry.url)
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const error = loadSong(await response.arrayBuffer(), entry.file)
-        if (error) songError.textContent = error
-        else songDialog.close()
-      } catch (error) {
-        console.error(`Couldn't load ${entry.file}:`, error)
-        songError.textContent = `Couldn't load ${prettyName(entry.file)}.`
-      }
-    })
-    samplesList.append(button)
+  // Drawn again when the samples have been sorted by their notes (see sortSamplesByNotes below).
+  function renderSampleButtons(): void {
+    samplesList.replaceChildren()
+    for (const entry of samples) {
+      const button = document.createElement('button')
+      button.className = 'library-item'
+      const title = document.createElement('strong')
+      title.textContent = prettyName(entry.file)
+      button.append(title)
+      button.title = entry.file
+      button.addEventListener('click', async () => {
+        try {
+          const response = await fetch(entry.url)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          const error = loadSong(await response.arrayBuffer(), entry.file)
+          if (error) songError.textContent = error
+          else songDialog.close()
+        } catch (error) {
+          console.error(`Couldn't load ${entry.file}:`, error)
+          songError.textContent = `Couldn't load ${prettyName(entry.file)}.`
+        }
+      })
+      samplesList.append(button)
+    }
   }
+  renderSampleButtons()
 
   // Your songs: the files I opened from my own device, kept in this browser (see history.ts), newest first. Opening
   // one again moves it to the top. The × on a row forgets that song, and Clear forgets them all.
@@ -1302,6 +1307,37 @@ function start(app: HTMLDivElement): void {
       renderWelcomeSongs()
     }),
   )
+
+  // The sample songs, most notes first (ties by name), in the song popup and on the welcome screen. The notes can only be
+  // counted by reading each file, so the lists start in name order and are sorted a moment later, when every file is
+  // read. The count is the same as when a song is opened: drum tracks and notes outside the 88 keys are not counted.
+  // A file that can't be read counts as 0 and sinks to the bottom.
+  async function sortSamplesByNotes(): Promise<void> {
+    const counts = new Map<string, number>()
+    await Promise.all(
+      samples.map(async (sample) => {
+        try {
+          const response = await fetch(sample.url)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          const midi = new Midi(await response.arrayBuffer())
+          let count = 0
+          for (const track of midi.tracks) {
+            if (track.instrument.percussion) continue
+            for (const note of track.notes) if (note.midi >= LOWEST && note.midi <= HIGHEST) count++
+          }
+          counts.set(sample.file, count)
+        } catch (error) {
+          console.error(`Couldn't count the notes in ${sample.file}:`, error)
+          counts.set(sample.file, 0)
+        }
+      }),
+    )
+    samples.sort((a, b) => (counts.get(b.file) ?? 0) - (counts.get(a.file) ?? 0) || a.file.localeCompare(b.file, undefined, { numeric: true }))
+    console.log('Sample songs by notes:', samples.map((s) => `${s.file} (${counts.get(s.file)})`).join(', '))
+    renderSampleButtons()
+    renderWelcomeSongs()
+  }
+  void sortSamplesByNotes()
   app.querySelector<HTMLButtonElement>('#clear-history')!.addEventListener('click', async () => {
     await clearHistory()
     await renderHistory()

@@ -903,6 +903,8 @@ I started Friday's plan early.
 - **Picked colors that did nothing (Claude's design slip):** Claude first kept Embers always fire-colored. With Embers the default, picking particle colors would have changed nothing. Claude noticed when its own test showed fire instead of violet. Embers followed picked colors after that, and then, when I asked, the note colors too.
 - **Commands that went wrong:** a long inline script broke the shell's quoting, and a Python edit's check stopped it twice because a pattern matched two places. Nothing was written in either case, and Claude redid them. A test script missed a screenshot setting once; its cleanup still ran, and Claude confirmed no Chrome was left before rerunning.
 
+- **Sample songs sorted in only one place (I noticed):** I asked for the sample songs to be sorted from most notes to least. Claude only found the list in the song popup, and then a permission prompt closed and it stopped without sorting anything. When I asked what it had done, it said so, and I told it the welcome menu wasn't sorted either. The welcome menu has its own list, but both lists come from the same array, so Claude fixed both together.
+
 **My own mistakes**
 - Nothing yet.
 
@@ -944,3 +946,4 @@ I started Friday's plan early.
 - Considered Wisps (curling smoke trails) and Lightning (a branching bolt). Built both, then took them out because I didn't like how they looked.
 - Considered keeping Embers always fire-colored. Chose to have them follow the particle colors like every other style.
 - Considered a burst when a key first lights up. Chose a burst for every note as it starts, so fast repeated notes each get one.
+- Considered sorting the sample songs by file size, which needs no reading of the files. Chose the real note count (the same count as when a song is opened), since file size isn't the same thing.

@@ -843,6 +843,51 @@ I started Friday's plan early.
 
 ---
 
+## 34. A Learn score, a limited octave range, grouped Settings, new colors and a softer key glow (2026-10-16)
+
+**What I asked for**
+- The default volume at 50%, not 70%.
+- In Learn, a combo counter in the dock and a percentage that starts at 100% (0 of 0), so a wrong first note is 0 of 1. Counters for right and wrong notes, which Settings can hide.
+- A more generous hit rule: if I press the correct next note early, don't punish me, but it only counts when I press it again inside the Learn timing window.
+- A new setting, "Limited octave range", for a keyboard with fewer octaves than the song. A bar I slide on the piano, and the notes outside it play as if I pressed them and count towards my score. Then, in rounds:
+  - Moving the bar or switching the setting shouldn't reset the score.
+  - Other bar styles, because the first was too big and distracting.
+  - A way to cover only the piano, to turn the shading off, or to turn it down.
+  - The shade slider in Settings was invisible.
+- Reorganize all of Settings so related things sit together, and reword the new descriptions.
+- A last sweep: optimize what's needed, add colors if they're needed (notes, theme, background), and check whether key glow is outdated.
+
+**What changed**
+- `score.ts` (new) and the dock: a combo, a percentage and a hits and misses pair. Each key press is judged once by `LearnSession.judge` in `learn.ts`: a key in the chord is a hit, any other key is a miss, and a right key that is too early or a repeat is ignored. Restart, a new song, other tracks or the other hand give a clean score. "Hits and misses" in Settings hides only the counters. On phones the score shares the bottom row with the seek slider so the dock stays two rows.
+- `limit.ts` (new, with `scripts/test-limit.mjs`): two bars on the piano that snap to white keys. The hand's notes outside them join what the song plays by itself, Learn never waits for them, and each counts as a hit once the song moves past it (it counts strictly after the note's start, so a song stopped exactly on a chord doesn't count a note that hasn't sounded). Keys I press outside the bars are neither hits nor misses. Moving a bar keeps the score.
+- The bar's looks: five styles (Bar, Line, Dashed, Marker, Shade), "Covers" (whole screen or the piano only), a switch for the shading and a strength slider (10% to 90%). The slider's track draws from a CSS variable that I hadn't set, which is why it was invisible.
+- Settings regrouped: Colors, Lights, Particles, Key names, Piano range, Learn timing, Learn options, Header chips, Songs, Computer keyboard, Credits. Only order and wording changed; every element keeps its id.
+- Last sweep:
+  - The frame loop wrote the time labels, the seek value and its progress style 60 times a second even while paused. It now writes only when something changed (0 writes a second while paused). It also reuses one set for the held keys, and `isHeld` makes no arrays.
+  - Key glow was a hard rectangle with a 7 px strip of light, and on White it did almost nothing. It is now a soft bloom where the note lands plus a gentler beam, from cached images, and on a light background it is laid over the page.
+  - Colors: Orange, Green, Magenta and Silver for notes (18, so three even rows), 16 theme colors, and Slate, Espresso, Indigo, Paper and Mist as backgrounds (18). Paper and Mist are light, like White.
+  - A stray tab character in a comment, and glow and dim-left test checks that had been stuck inside a comment and never ran.
+- The default volume is 50%.
+
+**What I checked**
+- `npm run build`, the strict type-check with unused-code flags and all ten test scripts pass.
+- Claude drove headless Chrome:
+  - **Score:** typed keys against a five-note song at three widths; an early correct press changed nothing; a wrong key was a miss; the right key at the chord was a hit.
+  - **Limited range:** a four-note song (C3, E4, C7, E4). The song didn't stop at C3 or C7 and each counted as a hit (4 hits, 0 misses, 100%). Dragging a bar mid-song kept the score. All five styles, the cover, the shade switch and strength were checked, the shade by reading canvas pixels.
+  - **Settings:** I scrolled through the whole panel after the regrouping, on desktop and at 390 px wide.
+  - **Frame loop:** I counted writes to the dock over a second paused and playing.
+  - **Key glow:** before and after screenshots on Black, White, Paper and Indigo.
+- Not checked: a real phone, a real MIDI keyboard with the score or the limited range, two hands with a limited range, and a slow computer.
+
+**Decisions**
+- A correct key pressed too early is neutral (no miss, no hit). The chord still only goes through with a press inside the timing window.
+- Two bars (low and high), not one, and a key I press outside them is ignored.
+- With both hands chosen and the limited range on, the song isn't silent: it plays the notes outside the bars.
+- With the Shade style and the shading off, nothing shows at all. I'm leaving that as my choice.
+- I didn't make the picture skip frames while nothing moves. It would need every setting to mark the picture as changed, and a missed one leaves a stale frame on screen, which isn't worth it this close to the due date.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -905,6 +950,13 @@ I started Friday's plan early.
 
 - **Sample songs sorted in only one place (I noticed):** I asked for the sample songs to be sorted from most notes to least. Claude only found the list in the song popup, and then a permission prompt closed and it stopped without sorting anything. When I asked what it had done, it said so, and I told it the welcome menu wasn't sorted either. The welcome menu has its own list, but both lists come from the same array, so Claude fixed both together.
 
+- **Shell backticks erased part of the score code (Claude's slip):** a Python one-liner with backticks inside a double-quoted string was run by the shell, which silently removed part of `showScore`. The line merged with the next statement, and the type-check still passed. Claude found it by reading the code back, and fixed it. Since then, text with backticks goes in through the edit tool.
+- **Test slips (Claude's):** a test clicked Play before the piano had loaded, and then clicked Play on a song that was already running, which paused it. Another aimed a bar drag at the control bar, so the drag failed and looked like a bug in the feature. A pixel check of the key glow read a black key where I'd expect a white one, so the "inside" comparison was wrong, and the numbers only made sense once read that way. Each was noticed from the output and redone.
+- **The invisible Shade slider (I found it):** Claude built the slider and checked its saved value and label, but never took a screenshot of that row. The track is drawn from a CSS variable the code never set, so it was invisible. Claude fixed it and then took a screenshot.
+- **A halo that wasn't there (Claude's):** `CLAUDE.md` and two code comments said a lit key has "a beam, a flash and a halo", but the code never drew a halo. It came up in the key glow review, and the docs and comments now say beam and bloom.
+- **Tests that never ran (Claude's, from an earlier session):** in `test-colors.mjs` the glow and dim-left checks sat on one comment line with a literal `\n`, so they were never run. The sweep found it, and they run and pass now. A stray tab character was also sitting in a comment in `renderer.ts`.
+- **The dock was three rows on phones (Claude caught it from screenshots):** the score didn't fit, so it moved to the bottom row beside the seek slider. Its "1×" combo also looked like the speed chip, so on phones it is stacked as a number over COMBO.
+
 **My own mistakes**
 - Nothing yet.
 
@@ -946,4 +998,10 @@ I started Friday's plan early.
 - Considered Wisps (curling smoke trails) and Lightning (a branching bolt). Built both, then took them out because I didn't like how they looked.
 - Considered keeping Embers always fire-colored. Chose to have them follow the particle colors like every other style.
 - Considered a burst when a key first lights up. Chose a burst for every note as it starts, so fast repeated notes each get one.
+- Considered counting a correct key pressed too early as a miss. Chose to ignore it, so I'm not punished for being eager.
+- Considered one bar for the limited octave range. Chose two (low and high).
+- Considered a single look for the bars. Built five (Bar, Line, Dashed, Marker, Shade), because the first was too big for some people.
+- Considered skipping redraws while nothing moves. Dropped it: too much risk of a stale frame for the gain.
+- Considered more than eighteen note colors. Chose four new ones (Orange, Green, Magenta, Silver) so the swatches stay in even rows.
+- Considered keeping White as the only light background. Added Paper and Mist, a warm and a cool one.
 - Considered sorting the sample songs by file size, which needs no reading of the files. Chose the real note count (the same count as when a song is opened), since file size isn't the same thing.

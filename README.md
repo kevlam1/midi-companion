@@ -11,14 +11,16 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **Pick how strict it is.** A key can be pressed a little early and still count. Choose Precise (0.025 s), 0.05, 0.1 (the default), 0.15, 0.2 s, or type your own. A key held down from long before, or the same press used twice, never counts.
 - **Play chords note by note** (on by default) lets a chord go through once each of its notes has been pressed, even one after another. That makes chords playable with a mouse.
 - **Practice one hand.** For a song with two tracks, the hand picker waits for just the right hand or just the left, and the other hand plays by itself and lights its keys. Which track is which hand is a guess from pitch, since MIDI files don't say.
+- **Limited octave range.** For a MIDI keyboard with fewer keys than the song needs. Switch it on in Settings, then drag the two bars on the piano to the keys you can reach. Notes outside the bars play by themselves, the song never waits for them, and they count as hits for your score, which keeps going while you move the bars. Pick how the bars look: a full bar with a grip, a thin line, a dashed line, a small marker above the keys, or only the shading. The bars can cover the whole screen or just the piano's keys, and the shading outside them can be turned off or turned down.
 - **Turn tracks off.** The Tracks popup lists every track with its instrument, MIDI channel, pitch range and note count, and each one can be switched off. It leaves the falling notes, the sound, and what Learn waits for.
+- **A score in the control bar.** A combo counter, a running percentage (100% until you play a wrong note), and counters for correct notes and misses, which can be switched off in Settings. Restart for a clean score.
 - A **"Waiting for" display** names the notes the song is waiting on. Drag it anywhere, or let it snap to two spots (under the header, above the piano). It steps out of the way of the control bar.
 - Learn pauses when the browser tab is hidden, so it never runs away from you.
 
 ### Make it yours
-- **Note colors.** Left and right hand each pick a color from a hand-made palette of fourteen. The darker shade used for notes on black keys follows from the color you pick. Both hands can share a color, with "Dim the left hand" to tell them apart, and a Swap button trades them in one press. Black and Charcoal are there for light backgrounds.
+- **Note colors.** Left and right hand each pick a color from a hand-made palette of eighteen. The darker shade used for notes on black keys follows from the color you pick. Both hands can share a color, with "Dim the left hand" to tell them apart, and a Swap button trades them in one press. Black and Charcoal are there for light backgrounds.
 - **A theme color** recolors the glow behind the notes and the whole interface: tabs, pills, buttons, switches, sliders, the play button, and the guides that show where the control bar will snap.
-- **A background color.** Black (the original), Charcoal, ten deep colors, or White, each shown as a small preview with your two note colors on it. On White, the interface keeps its dark glass and the notes get dark outlines so everything stays readable.
+- **A background color.** Black (the original), Charcoal, Slate, Espresso, eleven deep colors, or one of three light ones (White, Paper, Mist), each shown as a small preview with your two note colors on it. On a light one, the interface keeps its dark glass and the notes get dark outlines so everything stays readable.
 - **Lights you can turn down.** Separate switches for the background glow, the glow along the black bar above the piano, the light that rises from a pressed key, and the extra glow along the bar while the sustain pedal is held.
 - **Key names** on the keys, on the falling notes, on both, or off. For names on the keys there's a second switch to label only the C keys (C1, C2, C3 and so on).
 - **Fit piano to .midi.** A switch that shows only the octaves a song actually uses, from its lowest note to its highest, so the keys are wider. A song that stays in octaves 3 to 6 shows just those, for the whole song.
@@ -72,7 +74,7 @@ node scripts/make-test-midi.mjs
 
 It writes `test-files/c-major-scale.mid`. Loading it on the page should show exactly those 8 notes.
 
-`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, colors, the computer keyboard, the clock, the sustain pedal, the song history, tempo and beats, the folder picker, and particles).
+`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, the limited octave range, colors, the computer keyboard, the clock, the sustain pedal, the song history, tempo and beats, the folder picker, and particles).
 
 Songs that are fine to share can go in the `samplesongs/` folder, which is committed and shows up in the song popup for everyone. A `songs/` folder is gitignored, for private files, since MIDI arrangements are often copyrighted.
 

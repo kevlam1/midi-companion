@@ -23,6 +23,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **Key names** on the keys, on the falling notes, on both, or off. For names on the keys there's a second switch to label only the C keys (C1, C2, C3 and so on).
 - **Fit piano to .midi.** A switch that shows only the octaves a song actually uses, from its lowest note to its highest, so the keys are wider. A song that stays in octaves 3 to 6 shows just those, for the whole song.
 - **Display set octave range.** Pick the octaves yourself, in every mode. A strip of nine octave tiles has a window you drag by its edges to size it or by its middle to move it, and the piano changes as you drag. It takes priority over Fit piano to .midi.
+- **Particles.** Eight styles fly from each key as it lights up, all with a soft glow: Sparks, glowing Embers that cool as they rise, blinking Fireflies, twinkling Stars, Bubbles, Confetti, Stardust glitter and long light Streaks. Sliders set the intensity (25% to 200%) and how high they travel (50% to 300%), a switch keeps them in a tight column above their key (on by default), and they take each hand's note color unless you pick your own for each hand. Every note gets its particles, even in a dense song. Embers at 150% are on from the start.
 - **Clear the header.** Hide the tempo, note count, MIDI keyboard and Sustain chips one by one.
 - Everything is remembered in your browser, and a button at the bottom of Settings resets it all if you hold it down.
 
@@ -71,7 +72,7 @@ node scripts/make-test-midi.mjs
 
 It writes `test-files/c-major-scale.mid`. Loading it on the page should show exactly those 8 notes.
 
-`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, colors, the computer keyboard, the clock, the sustain pedal, the song history, and tempo and beats).
+`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, colors, the computer keyboard, the clock, the sustain pedal, the song history, tempo and beats, the folder picker, and particles).
 
 Songs that are fine to share can go in the `samplesongs/` folder, which is committed and shows up in the song popup for everyone. A `songs/` folder is gitignored, for private files, since MIDI arrangements are often copyrighted.
 

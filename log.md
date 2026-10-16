@@ -798,6 +798,51 @@ I started Friday's plan early.
 
 ---
 
+## 33. Menus for short windows, a touch-friendly octave window, and particles (2026-10-16)
+
+**What I asked for**
+- The welcome menu was too tall on my MacBook. Menus should follow the screen size.
+- The octave window in Settings was hard to drag and resize on a phone or iPad.
+- A new feature: particles that fly from the keys, with styles to pick and an intensity. Then many rounds on it:
+  - Rename Embers to Fireflies, add Embers that look like real embers, more ethereal effects, lightning, and a way for them to travel up further.
+  - I didn't like Wisps or Lightning, so they went. Every style should feel like Embers and Fireflies.
+  - Some notes had no particles. A higher limit, and keep it fast.
+  - A switch to keep them in a tight column above their key.
+  - New wording, equal slider bars, a tidier layout, and better defaults: Embers, 150% intensity, 150% height, column on.
+  - The effects should start on the key row, not about 10 px above it.
+  - Streaks shouldn't sit alone on a row.
+  - Particle colors per hand, matching the note colors unless I turn that off.
+  - Embers should follow the note colors too.
+  - Fast repeated notes weren't giving off particles.
+- To finish: optimize, patch holes, commit and push.
+
+**What changed**
+- `style.css`: the welcome card follows the window's height. Up to 920 px tall it is compact (about 450 px instead of 661), up to 720 px it drops its own title, and up to 640 px it drops the MIDI line. If it is still too tall it scrolls from its top instead of being cut off above. The song popup scrolls too.
+- The octave window: an edge is grabbed by being near it (26 px for a finger, 10 px for a mouse) instead of by hitting a 14 px handle, and a drag follows the finger from where it was touched. The strip is taller on touch screens. A header rule for `.left` was also hiding the window's left handle (both used the class name), so those rules now only touch the header.
+- `particles.ts` (new, with `scripts/test-particles.mjs`): eight styles (Sparks, Embers, Fireflies, Stars, Bubbles, Confetti, Stardust, Streaks), all with a soft glow and a flicker. Intensity (25% to 200%), Height (50% to 300%), "Rise in a column", and a ceiling of 4000 particles where the oldest make room so a new note always gets its burst. Particles that float off the top are dropped at once.
+- `renderer.ts`: a burst for every note as it starts, even when its key was already lit by the note before. A burst and a stream from keys I hold. Particles are born in the black rail and drawn last, so they come straight out of the keys. Glows are cached soft images, one per color.
+- Settings: a Particles switch, then a box with the styles in a 4 by 2 grid, the column switch, the two sliders, and "Match note colors". With that off, a row of colors for each hand. Embers cool from white-hot through their own color.
+- The last pass (optimize and patch):
+  - Embers' cooling shades are worked out once per color and step, not for every ember on every frame.
+  - Confetti pieces are drawn as a turned shape, without saving and restoring the whole canvas for each piece.
+  - A chord at exactly 0:00 now gets its particles. The new "note started" check had missed notes at the very start.
+
+**What I checked**
+- `npm run build` passes and all nine test scripts pass.
+- Claude drove headless Chrome for every round:
+  - **Welcome card:** at five window sizes, it fits without scrolling at all five.
+  - **Octave window:** dragged with emulated touch at iPad and phone sizes.
+  - **Particles:** each style, the column switch, the colors, a gapless repeated-notes song, a chord at 0:00, and the sample song at maximum settings. Stardust at 200% and 300% held 163 fps, with slow frames only as the song starts.
+- Not checked: a real phone or iPad for the octave window and the particles, and a slow computer.
+
+**Decisions**
+- Particles are on by default as Embers at 150% and 150%, rising in a column. A browser that saved its options earlier keeps what it saved.
+- Wisps and Lightning were taken out, and a saved one of them reads as Embers.
+- Particles stay off when the device asks for less motion.
+- Song notes only burst; only keys I hold keep streaming. A seek or a jump back doesn't set off the notes it passes.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -846,6 +891,18 @@ I started Friday's plan early.
 - **A scare about line endings that wasn't real (Claude's slip):** after the push, Claude saw "every line has a carriage return" in the committed files and thought a whole-file line-ending change had gone up. The cause was its own check (`grep` with `$'\r'`, which matched every line in that shell). A diff of the real sizes and Python showed the files are plain and the diffs are normal.
 - **Small slips Claude caught:** one command was refused twice because of a Temp path, so it ran nothing, and a Python edit of `CLAUDE.md` had a quoting error and made no change. Both were noticed from the output and redone. It also noticed before building that the old drop-box rule would have shrunk the new text.
 
+- **The `.left` clash (Claude's bug, found in its own screenshot):** the phone header rule `.left { display: contents }` also hit the octave window's left handle, which has the class `left`, so on phones its grip drew in the middle of the window. Claude measured the handle (it had no box at all) and limited the header rules to the header.
+- **Particle slips Claude caught itself:**
+  - Embers dropped the page to 35 fps, because the glow cache made a new image for almost every frame as the colors cooled.
+  - Trails were shorter the faster the screen, because they kept a fixed number of points per frame.
+  - Wisps looked beaded where round line ends overlapped.
+  - The trickle rate was off by a hair from floating-point adding (the new test caught it).
+
+  Claude fixed each one after seeing it.
+- **Notes with no particles (I found it):** the first ceiling (1500) made new notes get nothing once it was full. Then, separately, fast repeated notes on the same key only burst on the first one, because a burst waited for the key to go from dark to lit. I sent a screenshot. Claude changed it to a burst per note as it starts, and in the last pass found that this missed notes at exactly 0:00 and fixed that too.
+- **Picked colors that did nothing (Claude's design slip):** Claude first kept Embers always fire-colored. With Embers the default, picking particle colors would have changed nothing. Claude noticed when its own test showed fire instead of violet. Embers followed picked colors after that, and then, when I asked, the note colors too.
+- **Commands that went wrong:** a long inline script broke the shell's quoting, and a Python edit's check stopped it twice because a pattern matched two places. Nothing was written in either case, and Claude redid them. A test script missed a screenshot setting once; its cleanup still ran, and Claude confirmed no Chrome was left before rerunning.
+
 **My own mistakes**
 - Nothing yet.
 
@@ -884,3 +941,6 @@ I started Friday's plan early.
 - Considered keeping the volume slider on a phone by giving it a row of its own. Chose to hide it up to 400 px and keep the mute button, to keep the dock at two rows.
 - Considered showing the MIDI problem as a banner on a phone. Chose a small "!" button that opens a bubble, so it takes almost no room.
 - Considered keeping the welcome card's title on a short phone. Chose to drop it, because the header already has the name.
+- Considered Wisps (curling smoke trails) and Lightning (a branching bolt). Built both, then took them out because I didn't like how they looked.
+- Considered keeping Embers always fire-colored. Chose to have them follow the particle colors like every other style.
+- Considered a burst when a key first lights up. Chose a burst for every note as it starts, so fast repeated notes each get one.

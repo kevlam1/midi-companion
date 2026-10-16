@@ -36,7 +36,19 @@ import { buildBeats, clampBpm, formatBpm, metronomeTempo, tempoAt, type Beat, ty
 import { Metronome, type MetronomeMode } from './metronome.ts'
 import { startMidiInput } from './midi-input.ts'
 import { DEFAULT_VOLUME, Piano } from './piano.ts'
-import { BACKGROUNDS, NOTE_COLORS, THEME_COLORS, findBackground, findColor, parseSavedBackground, parseSavedColors, rgbOf, surfaceRgb } from './colors.ts'
+import {
+  BACKGROUNDS,
+  DEFAULT_LEFT,
+  DEFAULT_RIGHT,
+  NOTE_COLORS,
+  THEME_COLORS,
+  findBackground,
+  findColor,
+  parseSavedBackground,
+  parseSavedColors,
+  rgbOf,
+  surfaceRgb,
+} from './colors.ts'
 import {
   PIXELS_PER_SECOND,
   draw,
@@ -44,6 +56,8 @@ import {
   setKeyGlow,
   setKeyNames,
   setComputerOctave,
+  setParticles,
+  setParticleColors,
   litKeyCount,
   setLightBackground,
   setRailGlow,
@@ -54,6 +68,7 @@ import {
   type Trail,
 } from './renderer.ts'
 import { appHtml } from './template.ts'
+import { DEFAULT_COLUMN, DEFAULT_INTENSITY, DEFAULT_RISE, DEFAULT_STYLE, clampIntensity, clampRise, parseStyle, type ParticleStyle } from './particles.ts'
 import { initSmoothScroll } from './smooth-scroll.ts'
 import { initTooltips } from './tooltip.ts'
 
@@ -1521,6 +1536,16 @@ function start(app: HTMLDivElement): void {
         ...savedOctaves(saved?.octaveFirst, saved?.octaveLast),
         onlyC: saved?.onlyC === true,
         computerNames: saved?.computerNames === true, // names show the computer keys, not the notes' names
+        // Particles on or off is its own switch, so the style is kept while they are off. A browser that saved
+        // the style as "off" (before the switch existed) gets the switch off and the default style.
+        particlesOn: saved?.particlesOn === undefined ? saved?.particles !== 'off' : saved.particlesOn !== false,
+        particles: ((style) => (style === 'off' ? DEFAULT_STYLE : style))(parseStyle(saved?.particles)),
+        particleMatch: saved?.particleMatch !== false, // particles in each hand's note color, unless switched off
+        particleRight: findColor(saved?.particleRight) ? (saved?.particleRight as string) : DEFAULT_RIGHT,
+        particleLeft: findColor(saved?.particleLeft) ? (saved?.particleLeft as string) : DEFAULT_LEFT,
+        particleIntensity: clampIntensity(saved?.particleIntensity),
+        particleRise: clampRise(saved?.particleRise), // how far up they go (the Height slider)
+        particleColumn: saved?.particleColumn !== false, // rise in a column above their own key, on unless switched off
         showBpm: saved?.showBpm !== false,
         showNotes: saved?.showNotes !== false,
         showMidi: saved?.showMidi !== false,
@@ -1542,6 +1567,14 @@ function start(app: HTMLDivElement): void {
         octaveLast: DEFAULT_OCTAVES.last,
         onlyC: false,
         computerNames: false,
+        particlesOn: true,
+        particles: DEFAULT_STYLE as ParticleStyle,
+        particleMatch: true,
+        particleRight: DEFAULT_RIGHT,
+        particleLeft: DEFAULT_LEFT,
+        particleIntensity: DEFAULT_INTENSITY,
+        particleRise: DEFAULT_RISE,
+        particleColumn: DEFAULT_COLUMN,
         showBpm: true,
         showNotes: true,
         showMidi: true,
@@ -1552,11 +1585,16 @@ function start(app: HTMLDivElement): void {
     }
   })()
 
+  const lessMotion = matchMedia('(prefers-reduced-motion: reduce)')
+  lessMotion.addEventListener('change', () => applyRenderOptions())
   // Tells the canvas drawing about the glow options. The bar glow takes the theme's color.
   function applyRenderOptions(): void {
     setKeyGlow(options.keyGlow)
     setKeyNames(options.keyNames, options.onlyC, options.computerNames)
     setRailGlow(options.railGlow ? findColor(handChoice.theme)!.main : null)
+    // Particles stay off for anyone whose device asks for less motion, whatever is picked.
+    setParticles(lessMotion.matches || !options.particlesOn ? 'off' : options.particles, options.particleIntensity, options.particleRise, options.particleColumn)
+    setParticleColors(options.particleMatch ? null : [findColor(options.particleRight)!.main, findColor(options.particleLeft)!.main])
   }
 
   // Note colors and the theme. Each hand picks one color from the fixed list in colors.ts (no custom colors). Both
@@ -1847,38 +1885,53 @@ function start(app: HTMLDivElement): void {
     showOctaveEditor()
     saveOptions()
   })
-  // What a drag is doing: moving an edge, or carrying the whole window (keeping its size, grabbed `grab` blocks in).
-  let rangeDrag: { pointerId: number; part: 'left' | 'right' | 'body'; grab: number } | null = null
-  const blockAt = (event: PointerEvent): number => {
-    const rect = rangeStrip.getBoundingClientRect()
-    return Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST, Math.floor(((event.clientX - rect.left) / rect.width) * blocks)))
-  }
+  // What a drag is doing: moving an edge, or carrying the whole window (keeping its size). `offset` is how many px the
+  // finger (or mouse) was from the edge, or from the window's left side, when the drag began, so the thing being dragged
+  // follows the finger from where it was touched instead of jumping to it.
+  let rangeDrag: { pointerId: number; part: 'left' | 'right' | 'body'; offset: number } | null = null
+  const stripX = (event: PointerEvent): number => event.clientX - rangeStrip.getBoundingClientRect().left
+  const cellWidth = (): number => rangeStrip.getBoundingClientRect().width / blocks
   rangeStrip.addEventListener('pointerdown', (event) => {
-    const block = blockAt(event)
-    const side = (event.target as HTMLElement).dataset.side
+    const w = cellWidth()
+    const x = stripX(event)
+    const leftX = options.octaveFirst * w
+    const rightX = (options.octaveLast + 1) * w
+    const toLeft = Math.abs(x - leftX)
+    const toRight = Math.abs(x - rightX)
+    // An edge is grabbed by being near it, not by hitting a small handle: about 26 px for a finger or pen, 10 px for a
+    // mouse. A narrow window keeps a third of its width in the middle for moving it.
+    const reach = Math.min(event.pointerType === 'mouse' ? 10 : 26, (rightX - leftX) / 3)
     let part: 'left' | 'right' | 'body'
-    if (side === 'left' || side === 'right') part = side
-    else if (block >= options.octaveFirst && block <= options.octaveLast) part = 'body'
-    else {
-      // a tile outside the window: bring the window there, its middle on that tile
+    let offset: number
+    if (Math.min(toLeft, toRight) <= reach) {
+      part = toLeft <= toRight ? 'left' : 'right'
+      offset = x - (part === 'left' ? leftX : rightX)
+    } else if (x > leftX && x < rightX) {
+      part = 'body'
+      offset = x - leftX
+    } else {
+      // a tile outside the window: bring the window there, its middle on that tile, and carry on dragging it
+      const block = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST, Math.floor(x / w)))
       const span = options.octaveLast - options.octaveFirst
       const first = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST - span, block - Math.floor(span / 2)))
       setOctaves(first, first + span)
       part = 'body'
+      offset = x - options.octaveFirst * w
     }
-    rangeDrag = { pointerId: event.pointerId, part, grab: block - options.octaveFirst }
+    rangeDrag = { pointerId: event.pointerId, part, offset }
     rangeWindow.classList.add('dragging')
     rangeStrip.setPointerCapture(event.pointerId)
     event.preventDefault()
   })
   rangeStrip.addEventListener('pointermove', (event) => {
     if (!rangeDrag || event.pointerId !== rangeDrag.pointerId) return
-    const block = blockAt(event)
-    if (rangeDrag.part === 'left') setOctaves(Math.min(block, options.octaveLast), options.octaveLast)
-    else if (rangeDrag.part === 'right') setOctaves(options.octaveFirst, Math.max(block, options.octaveFirst))
+    const w = cellWidth()
+    const edge = Math.round((stripX(event) - rangeDrag.offset) / w) // the edge or the left side, snapped to a whole octave
+    if (rangeDrag.part === 'left') setOctaves(Math.min(edge, options.octaveLast), options.octaveLast)
+    else if (rangeDrag.part === 'right') setOctaves(options.octaveFirst, Math.max(edge - 1, options.octaveFirst))
     else {
       const span = options.octaveLast - options.octaveFirst
-      const first = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST - span, block - rangeDrag.grab))
+      const first = Math.max(OCTAVE_FIRST, Math.min(OCTAVE_LAST - span, edge))
       setOctaves(first, first + span)
     }
   })
@@ -1898,6 +1951,99 @@ function start(app: HTMLDivElement): void {
     })
   }
   showOctaveEditor()
+  // Particles: a switch, then (while it is on) a style, "Rise in a column", an intensity from 25% to 200%, a height
+  // from 50% to 300%, and the colors: each hand's note color, or a color picked for each hand.
+  const particleButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#particle-styles button')
+  const particleStrength = settingsDialog.querySelector<HTMLDivElement>('#particle-strength')!
+  const particleSlider = settingsDialog.querySelector<HTMLInputElement>('#particle-intensity')!
+  const particleValue = settingsDialog.querySelector<HTMLSpanElement>('#particle-intensity-value')!
+  const riseSlider = settingsDialog.querySelector<HTMLInputElement>('#particle-rise')!
+  const riseValue = settingsDialog.querySelector<HTMLSpanElement>('#particle-rise-value')!
+  const columnBox = settingsDialog.querySelector<HTMLInputElement>('#particle-column')!
+  const particlesBox = settingsDialog.querySelector<HTMLInputElement>('#particles-on')!
+  const matchBox = settingsDialog.querySelector<HTMLInputElement>('#particle-match')!
+  const particleColors = settingsDialog.querySelector<HTMLDivElement>('#particle-colors')!
+  const particleSwatches = settingsDialog.querySelectorAll<HTMLDivElement>('[data-particle-hand]')
+  for (const group of particleSwatches) {
+    const hand = group.dataset.particleHand as 'left' | 'right'
+    for (const color of NOTE_COLORS) {
+      const swatch = document.createElement('button')
+      swatch.className = 'color-swatch'
+      swatch.setAttribute('role', 'radio')
+      swatch.dataset.id = color.id
+      swatch.title = color.name
+      swatch.style.setProperty('--c', color.main)
+      swatch.style.setProperty('--d', color.dark)
+      swatch.addEventListener('click', () => {
+        if (hand === 'left') options.particleLeft = color.id
+        else options.particleRight = color.id
+        showParticleChoice()
+        applyRenderOptions()
+        saveOptions()
+      })
+      group.append(swatch)
+    }
+  }
+  particlesBox.addEventListener('change', () => {
+    options.particlesOn = particlesBox.checked
+    showParticleChoice()
+    applyRenderOptions()
+    saveOptions()
+  })
+  matchBox.addEventListener('change', () => {
+    options.particleMatch = matchBox.checked
+    showParticleChoice()
+    applyRenderOptions()
+    saveOptions()
+  })
+  function showSlider(slider: HTMLInputElement, label: HTMLSpanElement, value: number): void {
+    const percent = Math.round(value * 100)
+    const min = Number(slider.min)
+    const max = Number(slider.max)
+    slider.value = String(percent)
+    slider.style.setProperty('--progress', `${((percent - min) / (max - min)) * 100}%`)
+    label.textContent = `${percent}%`
+  }
+  function showParticleChoice(): void {
+    for (const button of particleButtons) button.setAttribute('aria-checked', String(button.dataset.particles === options.particles))
+    particlesBox.checked = options.particlesOn
+    particleStrength.hidden = !options.particlesOn
+    matchBox.checked = options.particleMatch
+    particleColors.hidden = options.particleMatch
+    for (const group of particleSwatches) {
+      const picked = group.dataset.particleHand === 'left' ? options.particleLeft : options.particleRight
+      for (const swatch of group.querySelectorAll<HTMLButtonElement>('.color-swatch')) swatch.setAttribute('aria-checked', String(swatch.dataset.id === picked))
+    }
+    showSlider(particleSlider, particleValue, options.particleIntensity)
+    showSlider(riseSlider, riseValue, options.particleRise)
+    columnBox.checked = options.particleColumn
+  }
+  columnBox.addEventListener('change', () => {
+    options.particleColumn = columnBox.checked
+    applyRenderOptions()
+    saveOptions()
+  })
+  riseSlider.addEventListener('input', () => {
+    options.particleRise = clampRise(Number(riseSlider.value) / 100)
+    showParticleChoice()
+    applyRenderOptions()
+    saveOptions()
+  })
+  for (const button of particleButtons) {
+    button.addEventListener('click', () => {
+      options.particles = parseStyle(button.dataset.particles)
+      showParticleChoice()
+      applyRenderOptions()
+      saveOptions()
+    })
+  }
+  particleSlider.addEventListener('input', () => {
+    options.particleIntensity = clampIntensity(Number(particleSlider.value) / 100)
+    showParticleChoice()
+    applyRenderOptions()
+    saveOptions()
+  })
+  showParticleChoice()
   showNameChoice()
   for (const button of nameButtons) {
     button.addEventListener('click', () => {
@@ -2000,6 +2146,14 @@ function start(app: HTMLDivElement): void {
       octaveLast: DEFAULT_OCTAVES.last,
       onlyC: false,
       computerNames: false,
+      particlesOn: true,
+      particles: DEFAULT_STYLE as ParticleStyle,
+      particleMatch: true,
+      particleRight: DEFAULT_RIGHT,
+      particleLeft: DEFAULT_LEFT,
+      particleIntensity: DEFAULT_INTENSITY,
+      particleRise: DEFAULT_RISE,
+      particleColumn: DEFAULT_COLUMN,
       showBpm: true,
       showNotes: true,
       showMidi: true,
@@ -2019,6 +2173,7 @@ function start(app: HTMLDivElement): void {
     oneByOneBox.checked = options.oneByOne
     fitBox.checked = options.fitRange
     showOctaveEditor()
+    showParticleChoice()
     learn.oneByOne = options.oneByOne
     showNameChoice()
     applyEarly()

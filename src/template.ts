@@ -283,6 +283,52 @@ export const appHtml = `
       <input type="checkbox" id="only-c" class="switch" />
       <span>Only label the C keys<small>Hide the other names, so only C1, C2, C3 and so on show on the keys</small></span>
     </label>
+    <h3>Particles</h3>
+    <label class="option-row">
+      <input type="checkbox" id="particles-on" class="switch" />
+      <span>Particles<small>Light rises from each key as it plays, and keeps flowing from keys you hold</small></span>
+    </label>
+    <div id="particle-strength" class="particle-panel" hidden>
+      <div id="particle-styles" class="segmented particle-grid" role="radiogroup" aria-label="Particle style">
+        <button data-particles="sparks" role="radio" aria-checked="false" title="Bright sparks that shoot up and fall back">Sparks</button>
+        <button data-particles="embers" role="radio" aria-checked="true" title="Hot glowing flecks that cool and dim as they rise">Embers</button>
+        <button data-particles="fireflies" role="radio" aria-checked="false" title="Soft lights that drift and slowly blink">Fireflies</button>
+        <button data-particles="stars" role="radio" aria-checked="false" title="Little stars that twinkle as they turn">Stars</button>
+        <button data-particles="bubbles" role="radio" aria-checked="false" title="Glowing rings that float up and grow">Bubbles</button>
+        <button data-particles="confetti" role="radio" aria-checked="false" title="Pieces in every color that tumble and catch the light">Confetti</button>
+        <button data-particles="stardust" role="radio" aria-checked="false" title="Fine glitter that drifts up and twinkles">Stardust</button>
+        <button data-particles="streaks" role="radio" aria-checked="false" title="Long trails of light that shoot up">Streaks</button>
+      </div>
+      <label class="option-row">
+        <input type="checkbox" id="particle-column" class="switch" />
+        <span>Rise in a column<small>Particles go straight up from their own key instead of spreading out</small></span>
+      </label>
+      <div class="intensity-row">
+        <span class="slider-name">Intensity</span>
+        <input type="range" id="particle-intensity" min="25" max="200" step="5" aria-label="Intensity: how many particles, and how lively" />
+        <span id="particle-intensity-value" class="intensity-value"></span>
+      </div>
+      <div class="intensity-row">
+        <span class="slider-name">Height</span>
+        <input type="range" id="particle-rise" min="50" max="300" step="10" aria-label="Height: how far up they travel" />
+        <span id="particle-rise-value" class="intensity-value"></span>
+      </div>
+      <label class="option-row particle-match-row">
+        <input type="checkbox" id="particle-match" class="switch" />
+        <span>Match note colors<small>Each hand's particles take that hand's note color. Turn off to pick your own</small></span>
+      </label>
+      <div id="particle-colors" class="particle-colors" hidden>
+        <div class="particle-color-row">
+          <span class="color-label">Left hand</span>
+          <div class="swatches" data-particle-hand="left" role="radiogroup" aria-label="Left hand particle color"></div>
+        </div>
+        <div class="particle-color-row">
+          <span class="color-label">Right hand</span>
+          <div class="swatches" data-particle-hand="right" role="radiogroup" aria-label="Right hand particle color"></div>
+        </div>
+      </div>
+      <p class="muted small particle-note">Intensity is how many there are and how lively; Height is how far up they travel. Confetti always uses every color. Particles stay off if your device is set to reduce motion.</p>
+    </div>
     <h3>Options</h3>
     <label class="option-row">
       <input type="checkbox" id="fit-range" class="switch" />

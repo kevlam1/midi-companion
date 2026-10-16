@@ -1,6 +1,7 @@
-import { DEFAULT_LEFT, DEFAULT_RIGHT, dimmed, findColor, rgbOf, type NoteColor } from './colors.ts'
+import { DEFAULT_LEFT, DEFAULT_RIGHT, NOTE_COLORS, dimmed, findColor, rgbOf, type NoteColor } from './colors.ts'
 import { keyboardLayout, keyLabel, type Key } from './keyboard.ts'
 import { keyCapForNote } from './computer-keys.ts'
+import { DEFAULT_COLUMN, DEFAULT_INTENSITY, DEFAULT_RISE, DEFAULT_STYLE, Particles, coolColor, fadeOf, type Particle, type ParticleStyle } from './particles.ts'
 
 export interface FallingNote {
   midi: number
@@ -58,6 +59,216 @@ const lineRgb = (): string => (lightBackground ? '0, 0, 0' : '255, 255, 255')
 
 export function setSustainGlow(held: boolean): void {
   sustainHeld = held
+}
+
+// Particles (Settings): a burst from each key the moment it lights up, and a few more each second from a key held by hand.
+// The numbers are in particles.ts; this file only draws them. Confetti uses every bright note color.
+const particles = new Particles()
+let particleStyle: ParticleStyle = DEFAULT_STYLE
+let particleIntensity = DEFAULT_INTENSITY
+let pressedBefore = new Set<number>() // the keys held by hand in the last frame, to see which ones were just pressed
+let songTimeBefore: number | null = null // the song time in the last frame, to see which notes started since
+let lastFrameTime: number | null = null
+const CONFETTI_COLORS = NOTE_COLORS.filter((color) => !color.noTheme).map((color) => color.main)
+
+// `rise` is the Height slider: how far up the particles travel (1 is 100%). `column` keeps them above their own key.
+// Particle colors picked in Settings for the right hand and the left hand, or null to use each hand's note color.
+let particleTint: [string, string] | null = null
+export function setParticleColors(colors: [string, string] | null): void {
+  particleTint = colors
+}
+
+export function setParticles(style: ParticleStyle, intensity: number, rise = DEFAULT_RISE, column = DEFAULT_COLUMN): void {
+  particleStyle = style
+  particleIntensity = intensity
+  particles.rise = rise
+  particles.column = column
+  if (style === 'off') particles.clear()
+}
+
+// An ember's shade as it cools, worked out once per color and step (there are only 16 steps), not for every ember on
+// every frame.
+const emberShades = new Map<string, string>()
+function emberShade(color: string, heat: number): string {
+  const key = color + heat
+  let shade = emberShades.get(key)
+  if (shade === undefined) {
+    shade = coolColor(color, heat)
+    if (emberShades.size > 512) emberShades.clear()
+    emberShades.set(key, shade)
+  }
+  return shade
+}
+
+// A soft round glow in a color, drawn once on a small canvas and kept, so each glowing particle is one cheap drawImage.
+// Added on top of each other on a dark page, the glows build up into the warm, misty light that Embers and Fireflies
+// have, and every style gets some of it.
+const glowSprites = new Map<string, HTMLCanvasElement>()
+function glowSprite(color: string): HTMLCanvasElement {
+  let sprite = glowSprites.get(color)
+  if (!sprite) {
+    sprite = document.createElement('canvas')
+    sprite.width = sprite.height = 64
+    const g = sprite.getContext('2d')!
+    const fill = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+    fill.addColorStop(0, 'rgba(255, 255, 255, 0.95)')
+    fill.addColorStop(0.18, color)
+    fill.addColorStop(0.45, withAlpha(color, 0.35))
+    fill.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    g.fillStyle = fill
+    g.fillRect(0, 0, 64, 64)
+    if (glowSprites.size > 64) glowSprites.clear() // ember colors change as they cool, so keep the cache small
+    glowSprites.set(color, sprite)
+  }
+  return sprite
+}
+
+// "#ffb870" or "rgb(255, 184, 112)" with an alpha.
+function withAlpha(color: string, alpha: number): string {
+  return color.startsWith('#') ? rgba(color, alpha) : color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
+}
+
+function drawGlow(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, radius: number): void {
+  ctx.drawImage(glowSprite(color), x - radius, y - radius, radius * 2, radius * 2)
+}
+
+// A gentle flicker between `low` and 1, different for each particle (its wobble), like a firefly or a dying ember.
+function flicker(p: Particle, rate: number, low: number): number {
+  return low + (1 - low) * (0.5 + 0.5 * Math.sin(p.age * rate + p.wobble * 3))
+}
+
+// A four-pointed star centered on (x, y).
+function starPath(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, angle: number): void {
+  ctx.beginPath()
+  for (let i = 0; i < 8; i++) {
+    const r = i % 2 === 0 ? size : size * 0.38
+    const a = angle + (i * Math.PI) / 4
+    if (i === 0) ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
+    else ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
+  }
+  ctx.closePath()
+}
+
+// A path through stored points (x, y, x, y ...).
+function polyline(ctx: CanvasRenderingContext2D, points: number[]): void {
+  ctx.beginPath()
+  ctx.moveTo(points[0], points[1])
+  for (let i = 2; i < points.length; i += 2) ctx.lineTo(points[i], points[i + 1])
+}
+
+function drawParticle(ctx: CanvasRenderingContext2D, p: Particle): void {
+  const alpha = fadeOf(p)
+  if (alpha < 0.02) return // too faint to see: skip the drawing
+  ctx.fillStyle = p.color
+  ctx.strokeStyle = p.color
+  switch (p.kind) {
+    case 'sparks': { // a short streak along the way it is flying, with a small glow at its head
+      const shine = flicker(p, 30, 0.6)
+      ctx.globalAlpha = alpha * 0.45 * shine
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 3.5)
+      ctx.globalAlpha = alpha * shine
+      ctx.lineWidth = p.size
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y)
+      ctx.lineTo(p.x - p.vx * 0.025, p.y - p.vy * 0.025)
+      ctx.stroke()
+      break
+    }
+    case 'embers': { // a hot fleck that cools from white-hot through its color to a dark glow, flickering as it rises
+      const heat = Math.round((1 - p.age / p.life) * 16) / 16 // 16 steps, so the glow images can be reused
+      const color = emberShade(p.color, heat) // the note's color, or the color picked for the hand
+      const shine = flicker(p, 22, 0.4)
+      ctx.globalAlpha = alpha * 0.5 * shine
+      drawGlow(ctx, color, p.x, p.y, p.size * 4)
+      ctx.globalAlpha = alpha * shine
+      ctx.fillStyle = color
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size * 1.3)
+      break
+    }
+    case 'fireflies': // a soft glow that slowly blinks on and off as it drifts
+      ctx.globalAlpha = alpha * flicker(p, 3.2, 0.25)
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 4.5)
+      break
+    case 'stars': { // a turning star in a soft halo, twinkling
+      const shine = flicker(p, 9, 0.45)
+      ctx.globalAlpha = alpha * 0.5 * shine
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 2.6)
+      ctx.globalAlpha = alpha * shine
+      starPath(ctx, p.x, p.y, p.size, p.angle)
+      ctx.fill()
+      break
+    }
+    case 'bubbles': { // a ring that grows as it rises, glowing faintly inside, with a small shine
+      const r = p.size * (1 + p.age / p.life)
+      const shine = flicker(p, 4, 0.6)
+      ctx.globalAlpha = alpha * 0.25 * shine
+      drawGlow(ctx, p.color, p.x, p.y, r * 1.6)
+      ctx.globalAlpha = alpha * 0.85 * shine
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = alpha * 0.7
+      ctx.beginPath()
+      ctx.arc(p.x - r * 0.35, p.y - r * 0.35, Math.max(0.6, r * 0.18), 0, Math.PI * 2)
+      ctx.fill()
+      break
+    }
+    case 'confetti': { // a small card that tumbles: it narrows and widens as it turns, and catches the light as it does
+      const turn = Math.abs(Math.cos(p.angle * 1.7))
+      ctx.globalAlpha = alpha * 0.3 * turn
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 2.4)
+      ctx.globalAlpha = alpha * (0.55 + 0.45 * turn)
+      // the card's four corners, turned by its angle: no save and restore of the whole canvas for each piece
+      const halfW = (p.size * Math.max(0.15, turn)) / 2
+      const halfH = p.size
+      const cos = Math.cos(p.angle)
+      const sin = Math.sin(p.angle)
+      ctx.beginPath()
+      ctx.moveTo(p.x + -halfW * cos - -halfH * sin, p.y + -halfW * sin + -halfH * cos)
+      ctx.lineTo(p.x + halfW * cos - -halfH * sin, p.y + halfW * sin + -halfH * cos)
+      ctx.lineTo(p.x + halfW * cos - halfH * sin, p.y + halfW * sin + halfH * cos)
+      ctx.lineTo(p.x + -halfW * cos - halfH * sin, p.y + -halfW * sin + halfH * cos)
+      ctx.closePath()
+      ctx.fill()
+      break
+    }
+    case 'stardust': // fine glitter that twinkles as it drifts up and spreads out
+      ctx.globalAlpha = alpha * flicker(p, 7, 0.3)
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 3.2)
+      break
+    case 'streaks': { // a long beam of light shooting up, bright at the head and fading down its tail
+      const shine = flicker(p, 12, 0.7)
+      if (p.trail.length >= 4) {
+        const fade = ctx.createLinearGradient(p.x, p.y, p.trail[0], p.trail[1])
+        fade.addColorStop(0, p.color)
+        fade.addColorStop(1, withAlpha(p.color, 0))
+        ctx.globalAlpha = alpha * shine
+        ctx.strokeStyle = fade
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = p.size * 2.2
+        polyline(ctx, p.trail)
+        ctx.stroke()
+        // a white-hot core near the head
+        const coreFrom = Math.max(0, p.trail.length - 8)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+        ctx.lineWidth = p.size * 0.8
+        ctx.beginPath()
+        ctx.moveTo(p.trail[coreFrom], p.trail[coreFrom + 1])
+        ctx.lineTo(p.x, p.y)
+        ctx.stroke()
+      }
+      ctx.globalAlpha = alpha * shine
+      drawGlow(ctx, p.color, p.x, p.y, p.size * 4)
+      break
+    }
+    case 'flare': // a short burst of light on the key, wide and soft, like a flash where the note lands
+      ctx.globalAlpha = alpha * 0.85
+      drawGlow(ctx, p.color, p.x, p.y, p.size * (0.6 + 0.4 * (p.age / p.life)))
+      break
+  }
 }
 
 // How many keys were lit in the last frame (a song's notes sounding, and keys held by hand). The glow behind the notes
@@ -176,6 +387,13 @@ export function draw(
 
   // Falling notes. A note's bottom edge reaches the keyboard exactly at note.time.
   const active = new Map<number, number>() // key -> track of the note playing on it right now
+  // Every note that started since the last frame gets its own burst of particles, even when the key was already lit by
+  // the note before it (fast repeated notes) or the note is so short it starts and ends between two frames. Only when
+  // the song moved forward by a normal step: a seek or a jump back doesn't set off every note it passes.
+  const started: FallingNote[] = []
+  const songMoved = songTimeBefore !== null && time > songTimeBefore && time - songTimeBefore < 0.25
+  // A note at the very start (0:00) counts when the song first moves off 0, since nothing can have played before it.
+  const startedAfter = songTimeBefore === 0 ? -1 : (songTimeBefore ?? 0)
   ctx.save()
   ctx.beginPath()
   ctx.rect(0, 0, width, railTop)
@@ -196,6 +414,7 @@ export function draw(
     if (!key) continue
     const playing = time > 0 && note.time <= time && time < note.time + note.duration
     if (playing) active.set(note.midi, note.track)
+    if (songMoved && note.time > startedAfter && note.time <= time) started.push(note) // began since the last frame
     const bottom = railTop - (note.time - time) * PIXELS_PER_SECOND
     const top = bottom - note.duration * PIXELS_PER_SECOND
     if (bottom < 0 || top > railTop) continue
@@ -276,6 +495,35 @@ export function draw(
     ctx.fillStyle = flash
     ctx.fillRect(key.x - 2, railTop - FLASH_HEIGHT, key.width + 4, FLASH_HEIGHT)
   }
+
+  // Particles: a burst from every key that just lit up, and a trickle from keys held by hand (a song paused on a note
+  // keeps its key lit, but doesn't keep pouring particles). They move by the real time since the last frame, at most
+  // 0.05 s, so a hidden tab coming back doesn't throw them across the screen. The old ones move first and the new ones
+  // are added after, so a new particle is drawn exactly where it was born: inside the black rail, right on the keys.
+  // They are drawn at the very end of the frame (see below).
+  const dt = lastFrameTime === null ? 0 : Math.min(0.05, Math.max(0, now - lastFrameTime))
+  lastFrameTime = now
+  particles.step(dt, -40) // anything that has floated off the top of the screen is dropped at once
+  if (particleStyle !== 'off') {
+    const birth = railTop + RAIL_HEIGHT / 2 // the middle of the black rail, where the notes land
+    const colorOf = (track: number): string => (particleTint ? particleTint[track % 2] : noteColor(track, false)) // track 0 is the right hand
+    // the song's notes: one burst for each note that started this frame
+    for (const note of started) {
+      const key = keys.get(note.midi)
+      if (key) particles.burst(particleStyle, key.x + key.width / 2, birth, key.width, colorOf(note.track), particleIntensity, CONFETTI_COLORS)
+    }
+    // keys held by hand: a burst when pressed, then a trickle while held (they use the right hand's color)
+    for (const midi of pressed) {
+      const key = keys.get(midi)
+      if (!key) continue
+      const x = key.x + key.width / 2
+      if (!pressedBefore.has(midi)) particles.burst(particleStyle, x, birth, key.width, colorOf(0), particleIntensity, CONFETTI_COLORS)
+      else particles.trickle(particleStyle, midi, x, birth, key.width, colorOf(0), particleIntensity, dt, CONFETTI_COLORS)
+    }
+  }
+  for (const midi of pressedBefore) if (!pressed.has(midi)) particles.release(midi)
+  pressedBefore = new Set(pressed)
+  songTimeBefore = time
   ctx.restore()
 
   // Keyboard: a dark bed, then white keys, then black keys on top.
@@ -350,5 +598,17 @@ export function draw(
     ctx.fillRect(0, railTop - reach, width, reach)
     ctx.fillStyle = rgba(railGlowColor, 0.9 + 0.1 * sustainLevel)
     ctx.fillRect(0, railTop, width, 1)
+  }
+
+  // Particles go on last, over the key's flash and the bar's glow, so they come straight out of the black rail. They
+  // may show over the rail but never over the keys below it.
+  if (particles.list.length > 0) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, width, railTop + RAIL_HEIGHT)
+    ctx.clip()
+    ctx.globalCompositeOperation = lightBackground ? 'source-over' : 'lighter' // light adds up on a dark page
+    for (const p of particles.list) drawParticle(ctx, p)
+    ctx.restore()
   }
 }

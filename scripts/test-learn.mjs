@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import pkg from '@tonejs/midi'
 import { orderTracksByPitch } from '../src/hands.ts'
 import { EARLY, EARLY_CHOICES, LearnSession, PRECISE_EARLY, groupChords, parseEarly } from '../src/learn.ts'
+import { Score } from '../src/score.ts'
 
 const note = (midi, time) => ({ midi, name: '', velocity: 0.8, time, duration: 0.5, track: 0 })
 // Keys that are down: each one pressed at the given song time.
@@ -225,5 +226,92 @@ learn.reset(1)
 assert.equal(learn.update(1, down(1, 60)).kind, 'run') // first chord played
 assert.equal(learn.update(2, down(1, 60)).kind, 'wait') // the same press is still held, and can't count again
 assert.equal(learn.update(2, down(2, 60)).kind, 'run') // a fresh press does
+
+// ---- Scoring: LearnSession.judge decides each key press, Score (score.ts) keeps the numbers ----
+{
+  const chordsOf = (...groups) => groupChords(groups.flatMap(([time, ...midis]) => midis.map((m) => note(m, time))))
+  const learn = new LearnSession()
+  learn.load(chordsOf([1, 60, 64], [2, 67])) // a C and E together at 1 s, then a G at 2 s
+  learn.early = 0.1
+
+  // a right key is a hit, a wrong key is a miss
+  assert.equal(learn.judge(60, 1), 'hit')
+  assert.equal(learn.judge(61, 1), 'miss') // not in the chord
+  assert.equal(learn.judge(67, 1), 'miss') // in the song, but not in this chord
+  // pressing a right key again before the chord is done is neither right nor wrong
+  assert.equal(learn.judge(60, 1.02), 'extra')
+  assert.equal(learn.judge(64, 1.02), 'hit')
+  // too early: a right key more than `early` before the chord is no penalty (it is the next note), but it doesn't count
+  // either; inside the window it is a hit. A wrong key is still a miss however early it is.
+  learn.reset(0)
+  assert.equal(learn.judge(60, 0.5), 'extra')
+  assert.equal(learn.judge(60, 0.89), 'extra') // 0.11 s early, window is 0.1
+  assert.equal(learn.judge(61, 0.5), 'miss') // not in the chord at all
+  assert.equal(learn.judge(67, 0.5), 'miss') // a note of a later chord is not the next note
+  assert.equal(learn.judge(60, 0.95), 'hit') // 0.05 s early: the early press did not use up the note, so this one counts
+  assert.equal(learn.judge(60, 0.96), 'extra') // and now it has counted
+  // the early press changes nothing in Learn itself: a key held since before the window still doesn't play the chord
+  learn.reset(0)
+  assert.equal(learn.judge(60, 0.3), 'extra')
+  assert.equal(learn.judge(64, 0.3), 'extra')
+  assert.equal(learn.update(1, down(0.3, 60, 64)).kind, 'wait') // pressed at 0.3 s, outside the window: the chord isn't played
+  assert.equal(learn.judge(60, 1), 'hit') // pressed again at the chord: counts
+  assert.equal(learn.judge(64, 1), 'hit')
+  assert.equal(learn.update(1, down(1, 60, 64)).kind, 'run')
+  // the song waiting a long time doesn't make a late key wrong
+  learn.reset(0)
+  assert.equal(learn.judge(60, 30), 'hit')
+  // after the chord is played, the next chord is the target
+  learn.reset(0)
+  learn.judge(60, 1)
+  learn.judge(64, 1)
+  assert.equal(learn.update(1, new Map([[60, 1], [64, 1]])).kind, 'run') // the chord goes through
+  assert.equal(learn.judge(67, 2), 'hit')
+  assert.equal(learn.judge(60, 2.05), 'miss') // C is not part of the G chord
+  // after the last chord, presses are ignored, not punished
+  learn.update(2, new Map([[67, 2]]))
+  assert.equal(learn.judge(60, 3), 'extra')
+  // a seek or restart gives every key a fresh start for the chord it lands on
+  learn.reset(0)
+  assert.equal(learn.judge(60, 1), 'hit')
+  learn.reset(0)
+  assert.equal(learn.judge(60, 1), 'hit')
+  // a different early window moves the edge
+  learn.early = PRECISE_EARLY
+  learn.reset(0)
+  assert.equal(learn.judge(60, 0.95), 'extra') // outside the 0.025 s window: too early to count, no penalty
+  assert.equal(learn.judge(60, 0.98), 'hit')
+
+  // Score: 100% with nothing played, a wrong first note is 0 of 1
+  const score = new Score()
+  assert.equal(score.percent, 100)
+  assert.deepEqual([score.hits, score.misses, score.combo, score.best], [0, 0, 0, 0])
+  score.miss()
+  assert.equal(score.percent, 0)
+  assert.equal(score.misses, 1)
+  // hits build the combo, a miss breaks it, the best combo is kept
+  score.reset()
+  for (let i = 0; i < 5; i++) score.hit()
+  assert.equal(score.combo, 5)
+  score.miss()
+  assert.equal(score.combo, 0)
+  assert.equal(score.best, 5)
+  score.hit()
+  score.hit()
+  assert.equal(score.combo, 2)
+  assert.equal(score.best, 5)
+  assert.equal(score.percent, Math.round((7 / 8) * 100)) // 7 hits, 1 miss: 88%
+  // rounding: 2 of 3 is 67%, 1 of 3 is 33%
+  score.reset()
+  score.hit(); score.hit(); score.miss()
+  assert.equal(score.percent, 67)
+  score.reset()
+  score.hit(); score.miss(); score.miss()
+  assert.equal(score.percent, 33)
+  // reset puts everything back, and it is 100% again
+  score.reset()
+  assert.equal(score.percent, 100)
+  assert.equal(score.best, 0)
+}
 
 console.log('All Learn mode checks passed.')

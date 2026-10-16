@@ -57,6 +57,8 @@ export class LearnSession {
   // down together (a mouse can only press one key at a time). Settings changes it.
   oneByOne = false
   private got = new Map<number, number>() // chord being played, in one-by-one mode: key -> the press that counted
+  private judged = new Set<number>() // the keys already judged a 'hit' for the chord at judgedIndex (see judge)
+  private judgedIndex = -1
 
   // Start over with a new song.
   load(chords: Chord[]): void {
@@ -71,6 +73,8 @@ export class LearnSession {
     this.waiting = null
     this.used.clear()
     this.got.clear()
+    this.judged.clear()
+    this.judgedIndex = -1
   }
 
   // Song time of the next chord I still have to play, or Infinity if there are none left.
@@ -101,6 +105,26 @@ export class LearnSession {
       return { kind: 'wait', time: chord.time, need: chord.midis }
     }
     return RUN
+  }
+
+  // Was a key that just went down (at song time `time`) a note the song needs? Call it once for each key press, for the
+  // score (score.ts). 'hit': it is one of the notes of the chord being played, no earlier than `early` before the chord
+  // (the same timing rule the chord itself uses). 'miss': any key that isn't a note of that chord. 'extra': neither right
+  // nor wrong, so the score ignores it: a right key pressed too early (it is the next note, so no penalty, but it only
+  // counts when it is pressed again inside the timing window), a right key that already counted for this chord (pressed
+  // again before the chord was finished), or a key after the last chord.
+  judge(midi: number, time: number): 'hit' | 'miss' | 'extra' {
+    const chord = this.chords[this.next]
+    if (!chord) return 'extra' // the song has no chords left to play
+    if (!chord.midis.includes(midi)) return 'miss'
+    if (chord.time - time > this.early) return 'extra' // the right note, but too early to count yet
+    if (this.judgedIndex !== this.next) {
+      this.judged.clear()
+      this.judgedIndex = this.next
+    }
+    if (this.judged.has(midi)) return 'extra'
+    this.judged.add(midi)
+    return 'hit'
   }
 
   // One-by-one mode: remembers each of the chord's keys that has a fresh press, so it still counts after the key is let go.

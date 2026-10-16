@@ -1004,4 +1004,5 @@ I started Friday's plan early.
 - Considered skipping redraws while nothing moves. Dropped it: too much risk of a stale frame for the gain.
 - Considered more than eighteen note colors. Chose four new ones (Orange, Green, Magenta, Silver) so the swatches stay in even rows.
 - Considered keeping White as the only light background. Added Paper and Mist, a warm and a cool one.
+- Added a build log page at `/logs/` for my portfolio to link to, with one sentence for each log section. Nothing in the app links to it, and it asks search engines to skip it. That only hides it: anyone with the link can open it. It is a plain hand-written file, so a new log section needs a new entry on the page by hand.
 - Considered sorting the sample songs by file size, which needs no reading of the files. Chose the real note count (the same count as when a song is opened), since file size isn't the same thing.

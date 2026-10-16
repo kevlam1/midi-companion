@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Meant to be reached from my portfolio. Nothing in the app links here, and this asks search engines to leave it out. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Build log · MIDI Companion</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      @font-face {
+        font-family: 'Plus Jakarta Sans';
+        font-style: normal;
+        font-weight: 200 800;
+        font-display: swap;
+        src: url('/fonts/plus-jakarta-sans-latin-ext.woff2') format('woff2');
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: 'Plus Jakarta Sans';
+        font-style: normal;
+        font-weight: 200 800;
+        font-display: swap;
+        src: url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      :root {
+        --bg: #08080c;
+        --text: #ececf2;
+        --text-2: #a4a4b4;
+        --text-3: #74748a;
+        --line: rgb(255 255 255 / 0.09);
+        --accent: #ffb870;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse 90% 40% at 50% 0%, rgb(255 184 112 / 0.1), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        font-size: 1rem;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        width: min(760px, 100% - 2.5rem);
+        margin: 0 auto;
+        padding: 3.5rem 0 4rem;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.6rem;
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.9rem, 5vw, 2.6rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+
+      .intro {
+        margin: 1rem 0 0;
+        max-width: 60ch;
+        color: var(--text-2);
+      }
+
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 1.4rem 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .facts li {
+        padding: 0.3rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.04);
+        color: var(--text-2);
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+        margin: 1.4rem 0 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration-color: rgb(255 184 112 / 0.4);
+        text-underline-offset: 3px;
+      }
+
+      a:hover {
+        text-decoration-color: var(--accent);
+      }
+
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+
+      h2 {
+        margin: 3rem 0 0.4rem;
+        padding-top: 1.4rem;
+        border-top: 1px solid var(--line);
+        color: var(--text-3);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      li.entry {
+        display: grid;
+        grid-template-columns: 2.4rem 1fr;
+        gap: 0 1rem;
+        padding: 1.05rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      li.entry:last-child {
+        border-bottom: 0;
+      }
+
+      .num {
+        padding-top: 0.15rem;
+        color: var(--accent);
+        font-size: 0.85rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .entry h3 {
+        margin: 0;
+        font-size: 1.02rem;
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
+      .entry p {
+        margin: 0.3rem 0 0;
+        color: var(--text-2);
+        font-size: 0.93rem;
+      }
+
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.4rem;
+        border-top: 1px solid var(--line);
+        color: var(--text-3);
+        font-size: 0.85rem;
+      }
+
+      footer p {
+        margin: 0 0 0.4rem;
+      }
+
+      @media (max-width: 480px) {
+        main {
+          padding-top: 2.4rem;
+        }
+
+        li.entry {
+          grid-template-columns: 1.9rem 1fr;
+          gap: 0 0.7rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">TCSS 490 · Artifact 2</p>
+      <h1>MIDI Companion: build log</h1>
+      <p class="intro">
+        A browser MIDI player and Synthesia-style visualizer, built in a week with Claude Code. Notes fall onto an 88-key piano,
+        and Learn mode waits at each chord until I play it on my own MIDI keyboard. These are the 34 entries of my log, with one
+        sentence on each.
+      </p>
+      <ul class="facts" aria-label="Project facts">
+        <li>12 to 16 October 2026</li>
+        <li>Vite + TypeScript + Canvas 2D</li>
+        <li>Claude Code</li>
+        <li>No UI framework</li>
+      </ul>
+      <p class="links">
+        <a href="/">Open the app</a>
+        <a href="https://github.com/kevlam1/midi-companion/blob/main/log.md" target="_blank" rel="noopener">Read the full log</a>
+        <a href="https://github.com/kevlam1/midi-companion" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+
+      <h2>Monday 12 October</h2>
+      <ol>
+        <li class="entry">
+          <span class="num">1</span>
+          <div>
+            <h3>Picking the idea and the stack</h3>
+            <p>I picked the MIDI visualizer idea, studied midee for ideas only because it has no license, and chose Vite, TypeScript and Canvas 2D with no framework.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">2</span>
+          <div>
+            <h3>Repo setup</h3>
+            <p>I set up the repo with a CLAUDE.md, this log and a .gitignore, and made lowercase file names a rule for all my artifacts.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">3</span>
+          <div>
+            <h3>Scaffolding the Vite project</h3>
+            <p>I scaffolded the project after checking Node's version and every package's license, and got a blank page building with strict TypeScript.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">4</span>
+          <div>
+            <h3>First deploy to Vercel</h3>
+            <p>I deployed the blank page to Vercel from GitHub for the first time, so every push to main now redeploys the site.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">5</span>
+          <div>
+            <h3>Parsing a MIDI file</h3>
+            <p>I added a MIDI parser and a generated test file, and confirmed the notes it read matched what we wrote and what midee showed.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">6</span>
+          <div>
+            <h3>Falling notes and the keyboard, v1</h3>
+            <p>I built the one clock, the 88-key layout and the canvas drawing, so notes fall onto the keyboard exactly on time.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">7</span>
+          <div>
+            <h3>Seek slider, frame rate, and darker black-key notes</h3>
+            <p>I added a seek slider and a frame counter and measured a steady 165 fps with a real song, which is why I never needed PixiJS.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">8</span>
+          <div>
+            <h3>Piano sound and sync</h3>
+            <p>I added a real piano sound from the Salamander recordings through Tone.js, and tested that the sound stays in sync with the falling notes.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">9</span>
+          <div>
+            <h3>Edge cases and a pause bug</h3>
+            <p>I handled bad files, drum tracks and background tabs, and Claude found a bug where pausing didn't actually stop the sound, which we fixed.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">10</span>
+          <div>
+            <h3>Keys light up while their note plays</h3>
+            <p>I made keys light while their note plays and colored the notes by track so the two hands can be told apart.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">11</span>
+          <div>
+            <h3>Playing the keys with the mouse</h3>
+            <p>I made the on-screen keys playable with a mouse or a finger, including gliding across them.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h2>Tuesday 13 October</h2>
+      <ol>
+        <li class="entry">
+          <span class="num">12</span>
+          <div>
+            <h3>Web MIDI input, step 1: listen only</h3>
+            <p>I made the page read my DONNER N25 and print its notes, after Claude showed me the docs and what they didn't confirm.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">13</span>
+          <div>
+            <h3>Web MIDI input, step 2: my keyboard plays the piano</h3>
+            <p>I made my keyboard play the piano and light the keys, and learned that pressing harder changes only the volume.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">14</span>
+          <div>
+            <h3>Tabs and Learn mode</h3>
+            <p>I built the Autoplay, Free play and Learn tabs, where Learn waits at each chord until I play it, and found while testing that holding a key early let me cheat.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">15</span>
+          <div>
+            <h3>Hosting the piano samples myself</h3>
+            <p>I copied the piano recordings into the repo with a one-year cache time, so the site no longer depends on Tone.js's server and a visitor's browser keeps the recordings after the first visit.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">16</span>
+          <div>
+            <h3>Settings button with the credits</h3>
+            <p>I added a Settings button with the credits inside, so the piano credit the license asks for is always one click away.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">17</span>
+          <div>
+            <h3>Silent keys before the first click, and a loud blast after</h3>
+            <p>I found that keys pressed before the first click all sounded at once, loudly, after the click, and we fixed the code that queued them.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">18</span>
+          <div>
+            <h3>The hand picker, and not cutting off the other hand</h3>
+            <p>I added a hand picker, worked out which track is which hand from real song data, and stopped the other hand from being cut off whenever Learn waits.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">19</span>
+          <div>
+            <h3>Test songs for the edge cases</h3>
+            <p>I had six edge-case test songs made whose correct results are known, so I don't have to check every case by hand.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">20</span>
+          <div>
+            <h3>A welcome screen and a song popup</h3>
+            <p>I built a welcome screen and a drag-and-drop song popup, after telling Claude its first version had far too much text.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">21</span>
+          <div>
+            <h3>The welcome card grows up, and the computer keyboard plays</h3>
+            <p>I gave the welcome card a title and a MIDI status pill, made the computer keyboard play the piano, and made dropping a file anywhere work.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">22</span>
+          <div>
+            <h3>Volume, playback speed, and a sustain pedal</h3>
+            <p>I added volume, a speed button from 0.25x to 2x, and a sustain pedal on the space bar or a MIDI pedal, and confirmed it works with my keyboard's sustain button.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">23</span>
+          <div>
+            <h3>The floating control bar</h3>
+            <p>I built a control bar I can drag that snaps to edges and corners and remembers where I leave it.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">24</span>
+          <div>
+            <h3>NOW PLAYING and a Tracks popup</h3>
+            <p>I added a NOW PLAYING pill and a Tracks popup that lists each track and lets me switch tracks off, checked against the real track data.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">25</span>
+          <div>
+            <h3>The look, the Settings panel, and separate songs</h3>
+            <p>I gave the whole app a modern look with a self-hosted font, glass panels, glows and animation, and built the Settings panel and separate songs for Autoplay and Learn.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h2>Wednesday 14 October</h2>
+      <ol>
+        <li class="entry">
+          <span class="num">26</span>
+          <div>
+            <h3>Tempo, a metronome, and the welcome song list</h3>
+            <p>I added the song's tempo and a metronome (Tone.js has none, so we built one), and a test caught a real bug in Claude's tempo code.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">27</span>
+          <div>
+            <h3>Settings, tooltips, backgrounds, and small fixes</h3>
+            <p>I added a hold-to-reset button, my own tooltips, switches to hide header chips, and background colors including a light White.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">28</span>
+          <div>
+            <h3>Smooth scrolling, a tab-switch bug, and a crash from the inspector</h3>
+            <p>I found three bugs by testing (a silent piano after switching tabs, choppy sound on a quick switch, and a crash when opening the inspector), and we fixed them.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">29</span>
+          <div>
+            <h3>A folder of my own songs</h3>
+            <p>I added a "Your folder" picker for Chrome and Edge so I can play songs straight from a folder on my computer.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">30</span>
+          <div>
+            <h3>Fit the piano to the song, and only labelling the C keys</h3>
+            <p>I added a setting that shows only the octaves a song uses, and another that labels only the C keys.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">31</span>
+          <div>
+            <h3>Chips, key names, a set octave range, a glow that follows the music, and phones</h3>
+            <p>I added computer-key names, an octave range I can pick, a background glow that follows the music, and the first phone layout.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h2>Thursday 15 October</h2>
+      <ol>
+        <li class="entry">
+          <span class="num">32</span>
+          <div>
+            <h3>The "!" button for MIDI, a two-row dock, a short welcome card, and trying it on my phone</h3>
+            <p>I added a "!" button that explains MIDI problems on phones, shrank the dock and welcome card, and checked it on my real phone for the first time.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h2>Friday 16 October</h2>
+      <ol>
+        <li class="entry">
+          <span class="num">33</span>
+          <div>
+            <h3>Menus for short windows, a touch-friendly octave window, and particles</h3>
+            <p>I made the menus fit short windows, made the octave window work with touch, and added particles that fly from the keys.</p>
+          </div>
+        </li>
+        <li class="entry">
+          <span class="num">34</span>
+          <div>
+            <h3>A Learn score, a limited octave range, grouped Settings, new colors and a softer key glow</h3>
+            <p>I added a Learn score, a limited octave range for smaller keyboards, regrouped Settings, added colors, and softened the key glow.</p>
+          </div>
+        </li>
+      </ol>
+
+      <footer>
+        <p>The full log also has a list of where Claude misread me or I had to correct course, and a list of decisions and abandoned ideas.</p>
+        <p><a href="https://github.com/kevlam1/midi-companion/blob/main/log.md" target="_blank" rel="noopener">Read the full log on GitHub</a></p>
+      </footer>
+    </main>
+  </body>
+</html>

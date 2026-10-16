@@ -1,6 +1,7 @@
 import { DEFAULT_LEFT, DEFAULT_RIGHT, NOTE_COLORS, dimmed, findColor, rgbOf, type NoteColor } from './colors.ts'
 import { keyboardLayout, keyLabel, type Key } from './keyboard.ts'
 import { keyCapForNote } from './computer-keys.ts'
+import { borderX, type LimitStyle } from './limit.ts'
 import { DEFAULT_COLUMN, DEFAULT_INTENSITY, DEFAULT_RISE, DEFAULT_STYLE, Particles, coolColor, fadeOf, type Particle, type ParticleStyle } from './particles.ts'
 
 export interface FallingNote {
@@ -29,7 +30,7 @@ export function setHandColors(right: NoteColor, left: NoteColor, dimLeft = false
   handColors = [right, dimLeft ? dimmed(left) : left]
 }
 
-// Display options from Settings. Key glow is the beam, the flash and the halo of a lit key. The bar glow is the
+// Display options from Settings. Key glow is the beam and the soft bloom of a lit key. The bar glow is the
 // theme-colored light along the black bar: it is the theme's color, or null for off.
 let keyGlowOn = true
 let railGlowColor: string | null = null
@@ -59,6 +60,19 @@ const lineRgb = (): string => (lightBackground ? '0, 0, 0' : '255, 255, 255')
 
 export function setSustainGlow(held: boolean): void {
   sustainHeld = held
+}
+
+// Limited octave range (Settings): two borders on the piano, and the part outside them is shaded. null draws nothing.
+let rangeBorders: { low: number; high: number } | null = null
+let rangeStyle: LimitStyle = 'bar'
+let rangeKeysOnly = false // true: the bars and shading cover only the piano's keys, not the screen above them
+let rangeShade = 0.45 // how dark the shading outside the bars is (0 = none)
+
+export function setRangeBorders(range: { low: number; high: number } | null, style: LimitStyle = 'bar', keysOnly = false, shade = 0.45): void {
+  rangeBorders = range
+  rangeStyle = style
+  rangeKeysOnly = keysOnly
+  rangeShade = shade
 }
 
 // Particles (Settings): a burst from each key the moment it lights up, and a few more each second from a key held by hand.
@@ -126,6 +140,27 @@ function glowSprite(color: string): HTMLCanvasElement {
 // "#ffb870" or "rgb(255, 184, 112)" with an alpha.
 function withAlpha(color: string, alpha: number): string {
   return color.startsWith('#') ? rgba(color, alpha) : color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
+}
+
+// A tall strip that fades from the color at its foot to nothing at its top, drawn once per color and stretched to each lit
+// key: one cheap drawImage, instead of a new gradient for every lit key on every frame.
+const beamSprites = new Map<string, HTMLCanvasElement>()
+function beamSprite(color: string): HTMLCanvasElement {
+  let sprite = beamSprites.get(color)
+  if (!sprite) {
+    sprite = document.createElement('canvas')
+    sprite.width = 2
+    sprite.height = 64
+    const g = sprite.getContext('2d')!
+    const fill = g.createLinearGradient(0, 64, 0, 0)
+    fill.addColorStop(0, withAlpha(color, 1))
+    fill.addColorStop(1, withAlpha(color, 0))
+    g.fillStyle = fill
+    g.fillRect(0, 0, 2, 64)
+    if (beamSprites.size > 32) beamSprites.clear() // only the hands' colors are ever used, so this stays tiny
+    beamSprites.set(color, sprite)
+  }
+  return sprite
 }
 
 function drawGlow(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, radius: number): void {
@@ -312,7 +347,7 @@ const KEY_RADIUS = 5
 const BLACK_KEY_RADIUS = 3
 const RAIL_HEIGHT = 4 // the black rail across the top of the keyboard, in px. Black keys reach up to its top, and notes land on it.
 const BEAM_HEIGHT = 150 // how far the light of a lit key reaches up the screen
-const FLASH_HEIGHT = 7 // the flash: the small rectangle of light right above a lit key (the beam is the tall one)
+const BLOOM_HEIGHT = 90 // the bloom: the soft light where a lit key's note lands. This is how far up it reaches.
 
 function colors(track: number): NoteColor {
   return handColors[track % handColors.length]
@@ -344,7 +379,7 @@ function longestDuration(notes: FallingNote[]): number {
   return longest
 }
 
-// Index of the first note starting at or after 	ime (notes.length if there is none).
+// Index of the first note starting at or after `time` (notes.length if there is none).
 function firstNoteFrom(notes: FallingNote[], time: number): number {
   let low = 0
   let high = notes.length
@@ -475,26 +510,23 @@ export function draw(
   for (const midi of pressed) lit.set(midi, 0)
   litKeys = lit.size
 
-  // The line the notes land on, and the light of each lit key: a beam up the screen and a small flash of light
-  // right above the key.
+  // The line the notes land on, and the light of each lit key: a beam up the screen, and a soft bloom where the note
+  // lands (the same glow image the particles use, stretched wide and tall, so it has no hard edges). Light adds up on a
+  // dark page. On a light page it is the color laid over it instead, because adding light to white shows nothing.
   ctx.fillStyle = `rgba(${lineRgb()}, ${lightBackground ? 0.25 : 0.12})`
   ctx.fillRect(0, railTop - 1, width, 1)
-  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalCompositeOperation = lightBackground ? 'source-over' : 'lighter'
   for (const [midi, track] of keyGlowOn ? lit : []) {
     const key = keys.get(midi)
     if (!key) continue
-    const beam = ctx.createLinearGradient(0, railTop, 0, railTop - BEAM_HEIGHT)
-    beam.addColorStop(0, glow(track, key.black ? 0.26 : 0.32))
-    beam.addColorStop(1, glow(track, 0))
-    ctx.fillStyle = beam
-    ctx.fillRect(key.x + 1, railTop - BEAM_HEIGHT, key.width - 2, BEAM_HEIGHT)
-
-    const flash = ctx.createLinearGradient(0, railTop, 0, railTop - FLASH_HEIGHT)
-    flash.addColorStop(0, glow(track, 0.55))
-    flash.addColorStop(1, glow(track, 0))
-    ctx.fillStyle = flash
-    ctx.fillRect(key.x - 2, railTop - FLASH_HEIGHT, key.width + 4, FLASH_HEIGHT)
+    const color = colors(track).main
+    ctx.globalAlpha = (key.black ? 0.26 : 0.32) * (lightBackground ? 0.8 : 1)
+    ctx.drawImage(beamSprite(color), key.x + 1, railTop - BEAM_HEIGHT, key.width - 2, BEAM_HEIGHT)
+    const reachX = key.width * 1.6 + 8
+    ctx.globalAlpha = lightBackground ? 0.4 : 0.6
+    ctx.drawImage(glowSprite(color), key.x + key.width / 2 - reachX, railTop - BLOOM_HEIGHT, reachX * 2, BLOOM_HEIGHT * 2)
   }
+  ctx.globalAlpha = 1
 
   // Particles: a burst from every key that just lit up, and a trickle from keys held by hand (a song paused on a note
   // keeps its key lit, but doesn't keep pouring particles). They move by the real time since the last frame, at most
@@ -598,6 +630,55 @@ export function draw(
     ctx.fillRect(0, railTop - reach, width, reach)
     ctx.fillStyle = rgba(railGlowColor, 0.9 + 0.1 * sustainLevel)
     ctx.fillRect(0, railTop, width, 1)
+  }
+
+  // The limited octave range: the notes and keys outside the two borders are shaded (the song plays them for me), and
+  // each border is a bar with a grip to drag. main.ts moves a border when the pointer grabs it above the keys.
+  if (rangeBorders !== null) {
+    const leftX = borderX(keys, rangeBorders.low, 'low', width)
+    const rightX = borderX(keys, rangeBorders.high, 'high', width)
+    const bottom = keyboardTop + keyboardHeight
+    const top = rangeKeysOnly ? railTop : 0 // "Piano only" starts at the rail the notes land on
+    if (rangeShade > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${lightBackground ? rangeShade * 0.45 : rangeShade})`
+      ctx.fillRect(0, top, leftX, bottom - top)
+      ctx.fillRect(rightX, top, width - rightX, bottom - top)
+    }
+    const ink = `rgba(${lineRgb()}, 0.85)`
+    for (const x of [Math.round(leftX), Math.round(rightX)]) {
+      if (rangeStyle === 'bar') {
+        ctx.fillStyle = ink
+        ctx.fillRect(x - 1, top, 2, bottom - top)
+        ctx.beginPath()
+        ctx.roundRect(x - 7, railTop - 48, 14, 34, 7)
+        ctx.fillStyle = lightBackground ? '#1c1c24' : '#f2f3f7'
+        ctx.fill()
+        ctx.fillStyle = lightBackground ? '#f2f3f7' : '#1c1c24'
+        for (const y of [38, 31, 24]) ctx.fillRect(x - 3, railTop - y, 6, 2)
+      } else if (rangeStyle === 'line') {
+        ctx.fillStyle = ink
+        ctx.fillRect(x, top, 1, bottom - top)
+      } else if (rangeStyle === 'dashed') {
+        ctx.strokeStyle = ink
+        ctx.lineWidth = 1
+        ctx.setLineDash([6, 6])
+        ctx.beginPath()
+        ctx.moveTo(x + 0.5, top)
+        ctx.lineTo(x + 0.5, bottom)
+        ctx.stroke()
+        ctx.setLineDash([])
+      } else if (rangeStyle === 'marker') {
+        // a short line on the keys and a small arrow just above them, so almost nothing is in the way of the notes
+        ctx.fillStyle = ink
+        ctx.fillRect(x - 1, railTop - 16, 2, bottom - railTop + 16)
+        ctx.beginPath()
+        ctx.moveTo(x - 6, railTop - 28)
+        ctx.lineTo(x + 6, railTop - 28)
+        ctx.lineTo(x, railTop - 18)
+        ctx.closePath()
+        ctx.fill()
+      }
+    }
   }
 
   // Particles go on last, over the key's flash and the bar's glow, so they come straight out of the black rail. They

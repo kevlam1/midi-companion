@@ -1533,7 +1533,7 @@ button:hover > .mode-icon {
 
 .color-picker.theme .swatches,
 .bg-picker .swatches {
-  grid-template-columns: repeat(12, 30px);
+  grid-template-columns: repeat(8, 30px); /* sixteen theme colors in two even rows (the backgrounds have their own grid below) */
 }
 
 .glow-row {
@@ -2618,6 +2618,46 @@ html[data-bg-light] #pedal {
   margin-top: 0.6rem;
 }
 
+/* ---------- Settings, grouped: gaps after a note, the limited range's bar styles, the keys list under its switch ---------- */
+.early-note + .option-row,
+#limit-options + .option-row {
+  margin-top: 0.9rem;
+}
+
+.option-row + .keys {
+  margin-top: 0.9rem;
+}
+
+#limit-options {
+  margin-top: 0.7rem;
+}
+
+#limit-options[hidden] {
+  display: none;
+}
+
+#limit-options .color-label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+#limit-options .muted {
+  margin-top: 0.6rem;
+}
+
+#limit-options .segmented + .color-label,
+#limit-options .segmented + .option-row {
+  margin-top: 0.9rem;
+}
+
+#limit-options .option-row + .intensity-row {
+  margin-top: 0.7rem;
+}
+
+#limit-shade-strength[hidden] {
+  display: none;
+}
+
 /* ---------- Set octave range (Settings) ---------- */
 /* Nine octave tiles with a window over them. Drag the window's edges to size it, or its middle to move it. */
 #range-editor {
@@ -2763,7 +2803,7 @@ html[data-bg-light] #pedal {
 }
 
 .particle-colors .swatches {
-  grid-template-columns: repeat(7, 30px);
+  grid-template-columns: repeat(9, 30px); /* eighteen colors in two rows of nine */
   gap: 0.55rem;
 }
 
@@ -2847,6 +2887,123 @@ html[data-bg-light] #pedal {
   color: rgb(var(--theme-rgb));
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* ---------- The Learn score in the control bar: combo, percentage, hits and misses ---------- */
+/* Only in Learn. The hits and misses can be switched off in Settings (the page gets the class hide-counts). */
+#score {
+  display: none;
+  flex: none;
+  align-items: center;
+  gap: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#app[data-mode='learn'] #score {
+  display: flex;
+}
+
+#score .combo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+#score .combo b {
+  min-width: 1.6ch;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-align: right;
+  transition: color 0.25s ease;
+}
+
+#score .combo small {
+  color: var(--text-3);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Five in a row and the number takes the theme color and glows. */
+#score .combo[data-hot='true'] b {
+  color: rgb(var(--theme-rgb));
+  text-shadow: 0 0 12px rgb(var(--theme-rgb) / 0.5);
+}
+
+#score .combo.bump b {
+  display: inline-block;
+  animation: combo-pop 0.28s var(--ease);
+}
+
+@keyframes combo-pop {
+  from {
+    transform: scale(1.45);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+#score .accuracy {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+#score .counts {
+  display: flex;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+#score .counts .ok {
+  color: var(--ok);
+}
+
+#score .counts .ok::before {
+  content: '\2713\00a0'; /* a check mark, then a space */
+}
+
+#score .counts .bad {
+  color: var(--danger);
+}
+
+#score .counts .bad::before {
+  content: '\2717\00a0'; /* a cross, then a space */
+}
+
+#app.hide-counts #score .counts {
+  display: none;
+}
+
+/* Snapped to a side the bar is a column, so the score stacks: combo, percentage, then the counts. */
+#controls[data-vertical='true'] #score {
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: center;
+}
+
+#controls[data-vertical='true'] #score .combo {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+#controls[data-vertical='true'] #score .combo b {
+  min-width: 0;
+  text-align: center;
+}
+
+#controls[data-vertical='true'] #score .counts {
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 /* ---------- MIDI warning: a "!" button next to the Tracks button, only on phones ---------- */
@@ -2998,7 +3155,7 @@ html[data-bg-light] #pedal {
   }
 
   .color-split .swatches {
-    grid-template-columns: repeat(7, 30px); /* fourteen colors in two rows of seven */
+    grid-template-columns: repeat(6, 30px); /* eighteen colors in three rows of six (that also fits the narrowest phones) */
   }
 
   .color-divider {
@@ -3007,7 +3164,7 @@ html[data-bg-light] #pedal {
   }
 
   .color-picker.theme .swatches {
-    grid-template-columns: repeat(6, 30px); /* twelve colors in two rows of six, not one row 470 px wide */
+    grid-template-columns: repeat(6, 30px); /* sixteen colors in rows of six (6, 6, 4), not two rows of eight 307 px wide */
   }
 
   .bg-picker .swatches {
@@ -3044,12 +3201,6 @@ html[data-bg-light] #pedal {
 
   .brand h1 {
     font-size: 0.92rem;
-  }
-}
-
-@media (max-width: 340px) {
-  .color-split .swatches {
-    grid-template-columns: repeat(6, 30px);
   }
 }
 
@@ -3445,6 +3596,36 @@ html[data-bg-light] #pedal {
 
 @media (max-width: 340px) {
   .particle-colors .swatches {
-    grid-template-columns: repeat(6, 30px); /* seven don't fit on the narrowest phones */
+    grid-template-columns: repeat(6, 30px); /* nine don't fit on a phone: three rows of six */
+  }
+}
+
+/* ---------- Phones, part 5: the Learn score shares the bottom row of the control bar with the seek slider ---------- */
+@media (max-width: 600px) {
+  #controls:not([data-vertical='true']) #score {
+    order: 9; /* the bottom row, before the seek slider (order 10) */
+    gap: 0.5rem;
+  }
+
+  #controls:not([data-vertical='true']) #seek {
+    flex: 1 1 90px; /* shares the row with the score; on its own (no score) it still fills the row */
+  }
+
+  /* "5 combo" stacks as the number over a tiny COMBO, so it isn't mistaken for the speed chip ("1x") and takes little room */
+  #score .combo {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    line-height: 1;
+  }
+
+  #score .combo b {
+    min-width: 0;
+    text-align: center;
+  }
+
+  #score .combo small {
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
   }
 }

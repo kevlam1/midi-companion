@@ -19,6 +19,24 @@ import {
   type Key,
 } from './keyboard.ts'
 import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
+import { Score } from './score.ts'
+import {
+  AutoCredit,
+  DEFAULT_LIMIT_HIGH,
+  DEFAULT_LIMIT_LOW,
+  DEFAULT_LIMIT_COVER,
+  DEFAULT_LIMIT_SHADE,
+  DEFAULT_LIMIT_STYLE,
+  borderX,
+  clampLimit,
+  clampLimitShade,
+  outsideLimit,
+  parseLimitCover,
+  parseLimitStyle,
+  snapHigh,
+  snapLow,
+  splitByLimit,
+} from './limit.ts'
 import {
   canRead,
   chooseFolder,
@@ -61,6 +79,7 @@ import {
   litKeyCount,
   setLightBackground,
   setRailGlow,
+  setRangeBorders,
   setSustainGlow,
   trackColor,
   type FallingNote,
@@ -191,6 +210,12 @@ function start(app: HTMLDivElement): void {
   let keysWidth = 0
   let glowLevel = 0 // 0 to 1: how much the glow behind the notes is swelling right now (see the frame loop)
   let glowShown = 0 // the value last written to the page, so it is only written when it changes
+  // What the dock last showed. Writing the same text or style to the page every frame (60 times a second, even while the song
+  // is paused) makes the browser re-check the layout each time, so the frame loop writes only when something changed.
+  let shownTime = ''
+  let shownTotal = ''
+  let shownProgress = ''
+  const pressedNow = new Set<number>() // the keys held by hand this frame, reused so no new Set is made 60 times a second
   let keysLow = LOWEST // the range the current `keys` were laid out for
   let keysHigh = HIGHEST
   let dragging = false // true while the seek slider is held, so the loop doesn't fight it
@@ -211,11 +236,32 @@ function start(app: HTMLDivElement): void {
   // Learn: the song waits for me.
   let mode: Mode = 'welcome'
   const learn = new LearnSession()
+  const score = new Score() // Learn's combo, hits and misses (score.ts)
+  const credit = new AutoCredit() // with a limited octave range: the notes the song plays for me, scored as hits (limit.ts)
+  const comboEl = app.querySelector<HTMLElement>('#combo')!
+  const comboNumber = app.querySelector<HTMLElement>('#combo-n')!
+  const accuracyEl = app.querySelector<HTMLElement>('#accuracy')!
+  const countOk = app.querySelector<HTMLElement>('#count-ok')!
+  const countBad = app.querySelector<HTMLElement>('#count-bad')!
+  // Writes the score into the dock. `bump` makes the combo pop when it just went up.
+  function showScore(bump = false): void {
+    comboNumber.textContent = String(score.combo)
+    accuracyEl.textContent = `${score.percent}%`
+    countOk.textContent = String(score.hits)
+    countBad.textContent = String(score.misses)
+    comboEl.dataset.hot = String(score.combo >= 5) // a warmer color while the combo is going
+    if (bump) {
+      comboEl.classList.remove('bump')
+      void comboEl.offsetWidth // lets the animation start again
+      comboEl.classList.add('bump')
+    }
+  }
   let learnHolding = false // true while Learn mode itself has stopped the clock to wait for me
   type Hand = 'both' | 'right' | 'left'
   let hand: Hand = 'both' // which hand Learn mode waits for. The other hand plays by itself.
   let soundNotes: FallingNote[] = [] // what the song plays by itself: everything in Autoplay, the other hand in Learn
   const noNotes: FallingNote[] = [] // Free play draws no falling notes
+  const noTrails: Trail[] = [] // and the other modes draw no rising notes
   let trails: Trail[] = [] // in Free play, the notes I play rise from the keys (see renderer.ts)
   const pressTimes = new Map<number, number>() // key held down -> song time when it was pressed (for Learn mode)
   app.dataset.mode = mode
@@ -1548,7 +1594,7 @@ function start(app: HTMLDivElement): void {
 
   // On/off options. All are on unless switched off, and all are remembered in this browser.
   // waiting: show the "Waiting for" chip in Learn. shareSong: a mode with no song yet gets the other mode's song.
-  // railGlow: the theme-colored glow along the black bar. keyGlow: the light from a lit key (beam, flash and halo).
+  // railGlow: the theme-colored glow along the black bar. keyGlow: the light from a lit key (beam and bloom).
   const OPTIONS_KEY = 'midi-companion.options'
   const DEFAULT_OCTAVES = { first: OCTAVE_FIRST, last: OCTAVE_LAST } // the set octave range starts with every octave in the window
   // The saved octave blocks, or the default ones if nothing usable was saved (see clampOctaves in keyboard.ts).
@@ -1556,6 +1602,11 @@ function start(app: HTMLDivElement): void {
     const ok = typeof first === 'number' && typeof last === 'number' && Number.isFinite(first) && Number.isFinite(last)
     const range = ok ? clampOctaves(first, last) : DEFAULT_OCTAVES
     return { octaveFirst: range.first, octaveLast: range.last }
+  }
+  // The saved borders of the limited octave range, or the default ones (see clampLimit in limit.ts).
+  function savedLimit(low: unknown, high: unknown): { limitLow: number; limitHigh: number } {
+    const range = clampLimit(low, high)
+    return { limitLow: range.low, limitHigh: range.high }
   }
   const options = (() => {
     try {
@@ -1570,6 +1621,12 @@ function start(app: HTMLDivElement): void {
         fitRange: saved?.fitRange === true, // off unless switched on
         octaveRange: saved?.octaveRange === true, // a set octave range, off unless switched on
         ...savedOctaves(saved?.octaveFirst, saved?.octaveLast),
+        limitRange: saved?.limitRange === true, // a limited octave range for Learn, off unless switched on
+        ...savedLimit(saved?.limitLow, saved?.limitHigh),
+        limitStyle: parseLimitStyle(saved?.limitStyle),
+        limitCover: parseLimitCover(saved?.limitCover),
+        limitShade: saved?.limitShade !== false, // the shading outside the bars, on unless switched off
+        limitShadeOpacity: clampLimitShade(saved?.limitShadeOpacity),
         onlyC: saved?.onlyC === true,
         computerNames: saved?.computerNames === true, // names show the computer keys, not the notes' names
         // Particles on or off is its own switch, so the style is kept while they are off. A browser that saved
@@ -1586,6 +1643,7 @@ function start(app: HTMLDivElement): void {
         showNotes: saved?.showNotes !== false,
         showMidi: saved?.showMidi !== false,
         showSustain: saved?.showSustain !== false,
+        showCounts: saved?.showCounts !== false, // hits and misses in the Learn score, on unless switched off
         sustainGlow: saved?.sustainGlow !== false,
         keyNames: (['keys', 'notes', 'both'].includes(saved?.keyNames as string) ? saved?.keyNames : 'none') as KeyNames,
       }
@@ -1601,6 +1659,13 @@ function start(app: HTMLDivElement): void {
         octaveRange: false,
         octaveFirst: DEFAULT_OCTAVES.first,
         octaveLast: DEFAULT_OCTAVES.last,
+        limitRange: false,
+        limitLow: DEFAULT_LIMIT_LOW,
+        limitHigh: DEFAULT_LIMIT_HIGH,
+        limitStyle: DEFAULT_LIMIT_STYLE,
+        limitCover: DEFAULT_LIMIT_COVER,
+        limitShade: true,
+        limitShadeOpacity: DEFAULT_LIMIT_SHADE,
         onlyC: false,
         computerNames: false,
         particlesOn: true,
@@ -1615,6 +1680,7 @@ function start(app: HTMLDivElement): void {
         showNotes: true,
         showMidi: true,
         showSustain: true,
+        showCounts: true,
         sustainGlow: true,
         keyNames: 'none' as KeyNames,
       }
@@ -1831,6 +1897,60 @@ function start(app: HTMLDivElement): void {
     learn.oneByOne = options.oneByOne
     saveOptions()
   })
+  // Limited octave range: for a MIDI keyboard with fewer keys. See limit.ts and the borders drawn in renderer.ts.
+  const limitBox = settingsDialog.querySelector<HTMLInputElement>('#limit-range')!
+  const limitOptions = settingsDialog.querySelector<HTMLDivElement>('#limit-options')!
+  const limitStyleButtons = limitOptions.querySelectorAll<HTMLButtonElement>('#limit-styles button')
+  const limitCoverButtons = limitOptions.querySelectorAll<HTMLButtonElement>('#limit-covers button')
+  const limitShadeBox = limitOptions.querySelector<HTMLInputElement>('#limit-shade')!
+  const limitShadeStrength = limitOptions.querySelector<HTMLDivElement>('#limit-shade-strength')!
+  const limitShadeSlider = limitOptions.querySelector<HTMLInputElement>('#limit-shade-opacity')!
+  const limitShadeValue = limitOptions.querySelector<HTMLSpanElement>('#limit-shade-value')!
+  // The bar choices show only while the limited range is on, and the shade strength only while the shading is on.
+  function showLimitOptions(): void {
+    limitBox.checked = options.limitRange
+    limitOptions.hidden = !options.limitRange
+    for (const button of limitStyleButtons) button.setAttribute('aria-checked', String(button.dataset.limitStyle === options.limitStyle))
+    for (const button of limitCoverButtons) button.setAttribute('aria-checked', String(button.dataset.limitCover === options.limitCover))
+    limitShadeBox.checked = options.limitShade
+    limitShadeStrength.hidden = !options.limitShade
+    const shadePercent = Math.round(options.limitShadeOpacity * 100)
+    limitShadeSlider.value = String(shadePercent)
+    // the filled part of the track is drawn from --progress, like the particle sliders (without it the track is invisible)
+    limitShadeSlider.style.setProperty('--progress', `${((shadePercent - Number(limitShadeSlider.min)) / (Number(limitShadeSlider.max) - Number(limitShadeSlider.min))) * 100}%`)
+    limitShadeValue.textContent = `${Math.round(options.limitShadeOpacity * 100)}%`
+  }
+  showLimitOptions()
+  for (const button of limitCoverButtons) {
+    button.addEventListener('click', () => {
+      options.limitCover = parseLimitCover(button.dataset.limitCover)
+      showLimitOptions()
+      saveOptions()
+    })
+  }
+  limitShadeBox.addEventListener('change', () => {
+    options.limitShade = limitShadeBox.checked
+    showLimitOptions()
+    saveOptions()
+  })
+  limitShadeSlider.addEventListener('input', () => {
+    options.limitShadeOpacity = clampLimitShade(Number(limitShadeSlider.value) / 100)
+    showLimitOptions()
+    saveOptions()
+  })
+  limitBox.addEventListener('change', () => {
+    options.limitRange = limitBox.checked
+    showLimitOptions()
+    saveOptions()
+    applyHand(true) // Learn is reloaded: the notes outside the borders move to the song's side. The score carries on
+  })
+  for (const button of limitStyleButtons) {
+    button.addEventListener('click', () => {
+      options.limitStyle = parseLimitStyle(button.dataset.limitStyle)
+      showLimitOptions()
+      saveOptions()
+    })
+  }
   const nameButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#key-names button')
   const onlyCRow = settingsDialog.querySelector<HTMLLabelElement>('#only-c-row')!
   const onlyCBox = settingsDialog.querySelector<HTMLInputElement>('#only-c')!
@@ -2092,11 +2212,12 @@ function start(app: HTMLDivElement): void {
   // Header chips I can hide: the tempo, the notes count, the MIDI keyboard, and "Sustain". They only hide the chip. The
   // MIDI keyboard and the sustain pedal keep working. A switch for the extra glow while the pedal is held, too.
   // Hiding is done with a class on the page (see style.css), so the text underneath keeps updating.
-  const chipBoxes: [string, 'showBpm' | 'showNotes' | 'showMidi' | 'showSustain', string][] = [
+  const chipBoxes: [string, 'showBpm' | 'showNotes' | 'showMidi' | 'showSustain' | 'showCounts', string][] = [
     ['#show-bpm', 'showBpm', 'hide-bpm'],
     ['#show-notes', 'showNotes', 'hide-notes'],
     ['#show-midi', 'showMidi', 'hide-midi'],
     ['#show-sustain', 'showSustain', 'hide-sustain'],
+    ['#show-counts', 'showCounts', 'hide-counts'],
   ]
   function applyChips(): void {
     for (const [, key, cls] of chipBoxes) app.classList.toggle(cls, !options[key])
@@ -2180,6 +2301,13 @@ function start(app: HTMLDivElement): void {
       octaveRange: false,
       octaveFirst: DEFAULT_OCTAVES.first,
       octaveLast: DEFAULT_OCTAVES.last,
+      limitRange: false,
+      limitLow: DEFAULT_LIMIT_LOW,
+      limitHigh: DEFAULT_LIMIT_HIGH,
+      limitStyle: DEFAULT_LIMIT_STYLE,
+      limitCover: DEFAULT_LIMIT_COVER,
+      limitShade: true,
+      limitShadeOpacity: DEFAULT_LIMIT_SHADE,
       onlyC: false,
       computerNames: false,
       particlesOn: true,
@@ -2194,6 +2322,7 @@ function start(app: HTMLDivElement): void {
       showNotes: true,
       showMidi: true,
       showSustain: true,
+      showCounts: true,
       sustainGlow: true,
       keyNames: 'none' as KeyNames,
     })
@@ -2207,6 +2336,8 @@ function start(app: HTMLDivElement): void {
     keyGlowBox.checked = options.keyGlow
     computerKeysBox.checked = options.computerKeys
     oneByOneBox.checked = options.oneByOne
+    showLimitOptions()
+    applyHand(true) // the limited range is off again: the song waits for every note
     fitBox.checked = options.fitRange
     showOctaveEditor()
     showParticleChoice()
@@ -2276,11 +2407,25 @@ function start(app: HTMLDivElement): void {
   // Remember when each key went down, in song time, so Learn mode can tell a fresh press from a key held for ages.
   function noteDown(midi: number): void {
     if (pressTimes.has(midi)) return
+    // A key outside the limited range isn't one I'm expected to reach: it is neither a hit nor a miss.
+    const reachable = !(options.limitRange && outsideLimit(midi, options.limitLow, options.limitHigh))
+    if (mode === 'learn' && (clock.playing || learnHolding) && reachable) {
+      // Score the press. Learn is first brought up to date with the presses before this one, so a quick run of keys is
+      // judged against the right chord even if the frame hasn't caught up yet.
+      learn.update(clock.time, pressTimes)
+      const verdict = learn.judge(midi, clock.time)
+      if (verdict === 'hit') score.hit()
+      else if (verdict === 'miss') score.miss()
+      if (verdict !== 'extra') showScore(verdict === 'hit')
+    }
     pressTimes.set(midi, clock.time)
     if (mode === 'free') trails.push({ midi, start: performance.now() / 1000, end: null })
   }
   function isHeld(midi: number): boolean {
-    return midiHeld.has(midi) || [...held.values()].includes(midi) || [...typedHeld.values()].includes(midi)
+    if (midiHeld.has(midi)) return true
+    for (const key of held.values()) if (key === midi) return true // no arrays made: this runs for every rising note, every frame
+    for (const key of typedHeld.values()) if (key === midi) return true
+    return false
   }
   function noteUp(midi: number): void {
     if (!isHeld(midi)) pressTimes.delete(midi)
@@ -2302,7 +2447,42 @@ function start(app: HTMLDivElement): void {
     }
   }
 
+  // The two borders of the limited octave range are dragged above the keys. A border is grabbed within a few pixels of
+  // it (more for a finger), anywhere from the top of the screen down to the keys, so no key press is ever stolen.
+  let limitDrag: { pointerId: number; side: 'low' | 'high' } | null = null
+  function borderUnder(event: PointerEvent): 'low' | 'high' | null {
+    if (mode !== 'learn' || !options.limitRange) return null
+    const rect = canvas.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    const keysTop = keyboardLayout(canvas.clientHeight).top
+    if (y >= keysTop) return null
+    if (options.limitCover === 'keys' && y < keysTop - 60) return null // "Piano only": a bar is grabbed just above the keys
+    const reach = event.pointerType === 'mouse' ? 9 : 18
+    const lowDistance = Math.abs(x - borderX(keys, options.limitLow, 'low', canvas.clientWidth))
+    const highDistance = Math.abs(x - borderX(keys, options.limitHigh, 'high', canvas.clientWidth))
+    if (Math.min(lowDistance, highDistance) > reach) return null
+    return lowDistance <= highDistance ? 'low' : 'high'
+  }
+  function moveBorder(event: PointerEvent): void {
+    if (!limitDrag) return
+    const x = event.clientX - canvas.getBoundingClientRect().left
+    const midi = limitDrag.side === 'low' ? snapLow(keys, x) : snapHigh(keys, x)
+    if (midi === undefined) return
+    // the low border can't pass the high one, nor the high one the low one
+    const range =
+      limitDrag.side === 'low' ? clampLimit(Math.min(midi, options.limitHigh), options.limitHigh) : clampLimit(options.limitLow, Math.max(midi, options.limitLow))
+    options.limitLow = range.low
+    options.limitHigh = range.high
+  }
   canvas.addEventListener('pointerdown', async (event) => {
+    const side = borderUnder(event)
+    if (side) {
+      limitDrag = { pointerId: event.pointerId, side }
+      canvas.setPointerCapture(event.pointerId)
+      event.preventDefault()
+      return
+    }
     if (!keyUnder(event)) return
     if (mode === 'welcome') setMode('free') // playing from the welcome screen goes straight to Free play
     canvas.setPointerCapture(event.pointerId) // keep getting moves even if the pointer leaves the canvas
@@ -2311,11 +2491,19 @@ function start(app: HTMLDivElement): void {
     if (down.has(event.pointerId)) moveTo(event.pointerId, keyUnder(event))
   })
   canvas.addEventListener('pointermove', (event) => {
+    if (limitDrag?.pointerId === event.pointerId) moveBorder(event)
+    else if (!limitDrag) canvas.style.cursor = borderUnder(event) ? 'ew-resize' : '' // shows what can be dragged
     if (down.has(event.pointerId)) moveTo(event.pointerId, keyUnder(event))
   })
   for (const type of ['pointerup', 'pointercancel']) {
     canvas.addEventListener(type, (event) => {
       const pointerId = (event as PointerEvent).pointerId
+      if (limitDrag?.pointerId === pointerId) {
+        limitDrag = null
+        saveOptions()
+        applyHand(true) // the notes outside the new borders move to the song's side. The score carries on
+        return
+      }
       down.delete(pointerId)
       moveTo(pointerId, undefined)
     })
@@ -2574,6 +2762,8 @@ function start(app: HTMLDivElement): void {
   })
 
   restartButton.addEventListener('click', () => {
+    score.reset() // starting over: a clean score
+    showScore()
     clock.seek(0, clock.playing ? lead() : 0)
     resync()
   })
@@ -2582,6 +2772,7 @@ function start(app: HTMLDivElement): void {
   // instead of waiting for the next frame (which is slower on 60 Hz screens).
   function resync(): void {
     learn.reset(clock.time)
+    credit.reset(clock.time)
     piano.reset(soundNotes, clock.time)
     metronome.resync(clock.time)
     if (clock.playing) piano.schedule(soundNotes, clock, undefined, untilWait())
@@ -2597,12 +2788,23 @@ function start(app: HTMLDivElement): void {
   // Works out what Learn mode waits for and what the song plays by itself, for the current tab and hand.
   // Learn waits for the chosen hand. The other hand keeps playing. The hand picker only shows with exactly two
   // tracks on: the one with the higher notes is the right hand, the other the left hand.
-  function applyHand(): void {
+  // `keepScore` is for a change that doesn't start the song over (the limited range being switched or moved).
+  function applyHand(keepScore = false): void {
     const [rightTrack, leftTrack] = [...enabledTracks].sort((a, b) => a - b)
     const practiced = (note: FallingNote): boolean =>
       hand === 'both' || (hand === 'right' ? note.track === rightTrack : note.track === leftTrack)
-    soundNotes = mode === 'learn' ? notes.filter((note) => !practiced(note)) : notes
-    learn.load(groupChords(notes.filter(practiced)))
+    // With a limited octave range, the notes of the practiced hand outside the borders are played by the song too, and
+    // Learn doesn't wait for them. Each one counts as a hit when the song passes it (see `credit`).
+    const limited = mode === 'learn' && options.limitRange
+    const beyond = (note: FallingNote): boolean => limited && outsideLimit(note.midi, options.limitLow, options.limitHigh)
+    soundNotes = mode === 'learn' ? notes.filter((note) => !practiced(note) || beyond(note)) : notes
+    const mine = notes.filter(practiced)
+    learn.load(groupChords(limited ? splitByLimit(mine, options.limitLow, options.limitHigh).inside : mine))
+    credit.load(limited ? splitByLimit(mine, options.limitLow, options.limitHigh).outside.map((note) => note.time) : [])
+    if (!keepScore) {
+      score.reset() // a new song, other tracks or the other hand: a clean score
+      showScore()
+    }
     resync()
   }
 
@@ -2671,6 +2873,14 @@ function start(app: HTMLDivElement): void {
       }
     }
 
+    // Limited octave range: each note the song plays for me counts as a hit once the song has moved past it.
+    if (mode === 'learn' && clock.playing) {
+      const passed = credit.advance(clock.time)
+      for (let i = 0; i < passed; i++) score.hit()
+      if (passed > 0) showScore()
+    }
+    setRangeBorders(mode === 'learn' && options.limitRange ? { low: options.limitLow, high: options.limitHigh } : null, options.limitStyle, options.limitCover === 'keys', options.limitShade ? options.limitShadeOpacity : 0)
+
     // Queue the other hand's notes, after Learn has decided whether the song stops or carries on.
     const queued = clock.playing ? piano.schedule(soundNotes, clock, undefined, untilWait()) : 0
     metronome.tick(clock, clickBpm(), currentPerMeasure, untilWait()) // Free mode runs by itself, Song mode follows the song
@@ -2693,17 +2903,11 @@ function start(app: HTMLDivElement): void {
 
     const time = clock.time
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(
-      ctx,
-      width,
-      height,
-      keys,
-      mode === 'free' ? noNotes : notes,
-      time,
-      new Set([...held.values(), ...midiHeld, ...typedHeld.values()]),
-      mode === 'free' ? trails : [],
-      wallClock,
-    )
+    pressedNow.clear()
+    for (const midi of held.values()) pressedNow.add(midi)
+    for (const midi of midiHeld) pressedNow.add(midi)
+    for (const midi of typedHeld.values()) pressedNow.add(midi)
+    draw(ctx, width, height, keys, mode === 'free' ? noNotes : notes, time, pressedNow, mode === 'free' ? trails : noTrails, wallClock)
     // The glow behind the notes swells with the music: more lit keys, more light. It comes up fairly quickly and
     // fades slowly, and the page's style is only touched when it has really changed.
     const glowTarget = Math.min(1, litKeyCount() / 6)
@@ -2724,11 +2928,23 @@ function start(app: HTMLDivElement): void {
       const shown = formatBpm(metronomeEffectiveMode() === 'song' ? tempoAt(currentTempos, time) * clock.speed : clickBpm())
       if (metronomeBpm.value !== shown) metronomeBpm.value = shown
     }
-    timeNow.textContent = time.toFixed(2)
-    timeTotal.textContent = `${duration.toFixed(2)} s`
-    if (!dragging) seekSlider.value = String(time)
+    const timeText = time.toFixed(2)
+    if (timeText !== shownTime) {
+      shownTime = timeText
+      timeNow.textContent = timeText
+    }
+    const totalText = `${duration.toFixed(2)} s`
+    if (totalText !== shownTotal) {
+      shownTotal = totalText
+      timeTotal.textContent = totalText
+    }
+    if (!dragging && seekSlider.value !== String(time)) seekSlider.value = String(time)
     const progress = duration > 0 ? (Number(seekSlider.value) / duration) * 100 : 0
-    seekSlider.style.setProperty('--progress', `${progress}%`)
+    const progressText = `${progress}%`
+    if (progressText !== shownProgress) {
+      shownProgress = progressText
+      seekSlider.style.setProperty('--progress', progressText)
+    }
 
     // Debug: log any frame that took over 25 ms, with the song time, to find lag spikes.
     const now = performance.now()

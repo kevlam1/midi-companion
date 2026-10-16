@@ -96,6 +96,11 @@ export const appHtml = `
       <button id="play" class="play-btn" disabled data-state="loading" aria-label="Loading piano" title="Loading piano…">${icons.play}${icons.pause}${icons.spinner}</button>
       <input type="range" id="seek" min="0" max="0" step="0.01" value="0" disabled aria-label="Song position" />
       <span id="time"><span id="time-now">0.00</span><span class="time-sep"> / </span><span id="time-total">0.00 s</span></span>
+      <div id="score" title="Learn score: your combo, and the share of keys you pressed that the song needed">
+        <span class="combo" id="combo"><b id="combo-n">0</b><small>combo</small></span>
+        <span class="accuracy" id="accuracy">100%</span>
+        <span class="counts" id="counts"><span class="ok" id="count-ok" title="Correct notes">0</span><span class="bad" id="count-bad" title="Misses">0</span></span>
+      </div>
       <button id="speed" title="Playback speed (right-click to step back)">1×</button>
       <div id="metronome-group" class="metronome-group" data-on="false" data-custom="false">
         <button id="metronome" class="icon-btn" aria-pressed="false" aria-label="Metronome" title="Metronome">${icons.metronome}</button>
@@ -218,7 +223,7 @@ export const appHtml = `
       <form method="dialog"><button class="icon-btn" aria-label="Close" title="Close">${icons.close}</button></form>
     </div>
     <div class="panel-scroll">
-    <h3 class="first">Note colors</h3>
+    <h3 class="first">Colors</h3>
     <div class="color-split">
       <div class="color-picker" data-hand="left">
         <span class="color-label">Left hand</span>
@@ -236,10 +241,6 @@ export const appHtml = `
       <span class="color-label">Theme</span>
       <div class="swatches" role="radiogroup" aria-label="Theme color"></div>
     </div>
-    <label class="option-row glow-row">
-      <input type="checkbox" id="glow-on" class="switch" />
-      <span>Background glow<small>The soft light behind the notes, in the theme color</small></span>
-    </label>
     <div class="bg-picker">
       <span class="color-label">Background</span>
       <div id="bg-swatches" class="swatches" role="radiogroup" aria-label="Background color"></div>
@@ -251,37 +252,22 @@ export const appHtml = `
       </label>
       <button id="reset-colors" class="link">Default</button>
     </div>
-    <h3>Learn timing</h3>
-    <div id="early-choices" class="segmented" role="radiogroup" aria-label="How early a key can be pressed">
-      <button data-early="0.025" role="radio" aria-checked="false" title="0.025 s">Precise</button>
-      <button data-early="0.05" role="radio" aria-checked="false">0.05 s</button>
-      <button data-early="0.1" role="radio" aria-checked="false">0.1 s</button>
-      <button data-early="0.15" role="radio" aria-checked="false">0.15 s</button>
-      <button data-early="0.2" role="radio" aria-checked="false">0.2 s</button>
-      <button data-early="custom" role="radio" aria-checked="false">Custom</button>
-    </div>
-    <div id="early-custom" class="early-custom" hidden>
-      <span>Seconds early</span>
-      <input type="number" id="early-input" min="0" max="1" step="0.005" inputmode="decimal" aria-label="Seconds early" />
-    </div>
-    <p class="muted small">
-      How early a key can be pressed and still count in Learn. Precise (0.025 s) wants a key right as the notes reach
-      the keys. Wider is more forgiving. The song always waits for you, so late is never a problem.
-    </p>
-    <h3>Key names</h3>
-    <div id="key-names" class="segmented" role="radiogroup" aria-label="Where to show key names">
-      <button data-names="none" role="radio" aria-checked="true">None</button>
-      <button data-names="keys" role="radio" aria-checked="false">On the keys</button>
-      <button data-names="notes" role="radio" aria-checked="false">On the notes</button>
-      <button data-names="both" role="radio" aria-checked="false">On both</button>
-    </div>
-    <div id="name-style" class="segmented" role="radiogroup" aria-label="What the names say" hidden>
-      <button data-style="notes" role="radio" aria-checked="true" title="The note's name: C, C#, D ...">Note names</button>
-      <button data-style="computer" role="radio" aria-checked="false" title="The computer key that plays it (follows the up and down arrows)">Computer keys</button>
-    </div>
-    <label id="only-c-row" class="option-row sub" hidden>
-      <input type="checkbox" id="only-c" class="switch" />
-      <span>Only label the C keys<small>Hide the other names, so only C1, C2, C3 and so on show on the keys</small></span>
+    <h3>Lights</h3>
+    <label class="option-row">
+      <input type="checkbox" id="glow-on" class="switch" />
+      <span>Background glow<small>The soft light behind the notes, in the theme color</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="rail-glow" class="switch" />
+      <span>Bar glow<small>The light along the black bar above the piano, in the theme color</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="key-glow" class="switch" />
+      <span>Key glow<small>The light that rises from a key when it is pressed or its note is playing</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="sustain-glow" class="switch" />
+      <span>Sustain glow<small>Brighten the glow along the bar while the pedal is held</small></span>
     </label>
     <h3>Particles</h3>
     <label class="option-row">
@@ -329,7 +315,22 @@ export const appHtml = `
       </div>
       <p class="muted small particle-note">Intensity is how many there are and how lively; Height is how far up they travel. Confetti always uses every color. Particles stay off if your device is set to reduce motion.</p>
     </div>
-    <h3>Options</h3>
+    <h3>Key names</h3>
+    <div id="key-names" class="segmented" role="radiogroup" aria-label="Where to show key names">
+      <button data-names="none" role="radio" aria-checked="true">None</button>
+      <button data-names="keys" role="radio" aria-checked="false">On the keys</button>
+      <button data-names="notes" role="radio" aria-checked="false">On the notes</button>
+      <button data-names="both" role="radio" aria-checked="false">On both</button>
+    </div>
+    <div id="name-style" class="segmented" role="radiogroup" aria-label="What the names say" hidden>
+      <button data-style="notes" role="radio" aria-checked="true" title="The note's name: C, C#, D ...">Note names</button>
+      <button data-style="computer" role="radio" aria-checked="false" title="The computer key that plays it (follows the up and down arrows)">Computer keys</button>
+    </div>
+    <label id="only-c-row" class="option-row sub" hidden>
+      <input type="checkbox" id="only-c" class="switch" />
+      <span>Only label the C keys<small>Hide the other names, so only C1, C2, C3 and so on show on the keys</small></span>
+    </label>
+    <h3>Piano range</h3>
     <label class="option-row">
       <input type="checkbox" id="fit-range" class="switch" />
       <span>Fit piano to .midi<small>Show only the octaves the song uses, with wider keys</small></span>
@@ -342,6 +343,66 @@ export const appHtml = `
       <div id="range-strip" aria-label="Octaves shown on the piano"></div>
       <p id="range-readout" class="muted small"></p>
     </div>
+    <h3>Learn timing</h3>
+    <div id="early-choices" class="segmented" role="radiogroup" aria-label="How early a key can be pressed">
+      <button data-early="0.025" role="radio" aria-checked="false" title="0.025 s">Precise</button>
+      <button data-early="0.05" role="radio" aria-checked="false">0.05 s</button>
+      <button data-early="0.1" role="radio" aria-checked="false">0.1 s</button>
+      <button data-early="0.15" role="radio" aria-checked="false">0.15 s</button>
+      <button data-early="0.2" role="radio" aria-checked="false">0.2 s</button>
+      <button data-early="custom" role="radio" aria-checked="false">Custom</button>
+    </div>
+    <div id="early-custom" class="early-custom" hidden>
+      <span>Seconds early</span>
+      <input type="number" id="early-input" min="0" max="1" step="0.005" inputmode="decimal" aria-label="Seconds early" />
+    </div>
+    <p class="muted small early-note">
+      How early a key can be pressed and still count in Learn. Precise (0.025 s) wants a key right as the notes reach
+      the keys. Wider is more forgiving. The song always waits for you, so late is never a problem.
+    </p>
+    <h3>Learn options</h3>
+    <label class="option-row">
+      <input type="checkbox" id="one-by-one" class="switch" />
+      <span>Play chords note by note<small>A chord goes through once each of its notes has been pressed, even if not together</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="show-waiting" class="switch" />
+      <span>Show "Waiting for"<small>The display that names the notes Learn is waiting for</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="show-counts" class="switch" />
+      <span>Hits and misses<small>Show how many notes you got right and wrong, beside the combo</small></span>
+    </label>
+    <label class="option-row">
+      <input type="checkbox" id="limit-range" class="switch" />
+      <span>Limited octave range<small>For a keyboard with fewer keys. Mark the keys you can reach, and the song plays the rest for you</small></span>
+    </label>
+    <div id="limit-options" hidden>
+      <span class="color-label">Bar style</span>
+      <div id="limit-styles" class="segmented" role="radiogroup" aria-label="Style of the range bars">
+        <button data-limit-style="bar" role="radio" aria-checked="true" title="A line down the whole screen with a grip to hold">Bar</button>
+        <button data-limit-style="line" role="radio" aria-checked="false" title="A thin line down the whole screen, with no grip">Line</button>
+        <button data-limit-style="dashed" role="radio" aria-checked="false" title="A thin dashed line down the whole screen, with no grip">Dashed</button>
+        <button data-limit-style="marker" role="radio" aria-checked="false" title="A small marker just above the keys, and nothing higher">Marker</button>
+        <button data-limit-style="shade" role="radio" aria-checked="false" title="No bar at all: only the shading shows where your range ends">Shade</button>
+      </div>
+      <span class="color-label">Covers</span>
+      <div id="limit-covers" class="segmented" role="radiogroup" aria-label="How much of the screen the bars cover">
+        <button data-limit-cover="screen" role="radio" aria-checked="true" title="The bars and shading run from the top of the screen down over the piano">Whole screen</button>
+        <button data-limit-cover="keys" role="radio" aria-checked="false" title="The bars and shading only cover the piano's keys, so the falling notes stay clear">Piano only</button>
+      </div>
+      <label class="option-row">
+        <input type="checkbox" id="limit-shade" class="switch" />
+        <span>Shade the outside<small>Darken the part of the piano outside your bars. Turn off to show only the bars</small></span>
+      </label>
+      <div id="limit-shade-strength" class="intensity-row">
+        <span class="slider-name">Shade</span>
+        <input type="range" id="limit-shade-opacity" min="10" max="90" step="5" aria-label="How dark the shading is" />
+        <span id="limit-shade-value" class="intensity-value"></span>
+      </div>
+      <p class="muted small">In Learn, drag a bar sideways above the piano to move it (it snaps to the white keys). Notes outside the bars play by themselves and count as hits. Your score keeps going while you move them. Keys you press outside the bars are ignored.</p>
+    </div>
+    <h3>Header chips</h3>
     <label class="option-row">
       <input type="checkbox" id="show-bpm" class="switch" />
       <span>Tempo<small>Show the song's BPM in the header</small></span>
@@ -358,30 +419,7 @@ export const appHtml = `
       <input type="checkbox" id="show-sustain" class="switch" />
       <span>Sustain label<small>Show a label while the pedal is held</small></span>
     </label>
-    <label class="option-row">
-      <input type="checkbox" id="sustain-glow" class="switch" />
-      <span>Sustain glow<small>Brighten the glow along the bar while the pedal is held</small></span>
-    </label>
-    <label class="option-row">
-      <input type="checkbox" id="computer-keys" class="switch" />
-      <span>Play with the computer keyboard<small>Turn off so the letter and number keys stop playing notes. Space and the arrows still work</small></span>
-    </label>
-    <label class="option-row">
-      <input type="checkbox" id="rail-glow" class="switch" />
-      <span>Bar glow<small>The light along the black bar above the piano, in the theme color</small></span>
-    </label>
-    <label class="option-row">
-      <input type="checkbox" id="key-glow" class="switch" />
-      <span>Key glow<small>The light that rises from a key when it is pressed or its note is playing</small></span>
-    </label>
-    <label class="option-row">
-      <input type="checkbox" id="show-waiting" class="switch" />
-      <span>Show "Waiting for"<small>The display that names the notes Learn is waiting for</small></span>
-    </label>
-    <label class="option-row">
-      <input type="checkbox" id="one-by-one" class="switch" />
-      <span>Play chords note by note<small>In Learn, a chord goes through once each of its notes has been pressed, even if not together</small></span>
-    </label>
+    <h3>Songs</h3>
     <label class="option-row">
       <input type="checkbox" id="share-song" class="switch" />
       <span>
@@ -390,6 +428,10 @@ export const appHtml = `
       </span>
     </label>
     <h3>Computer keyboard</h3>
+    <label class="option-row">
+      <input type="checkbox" id="computer-keys" class="switch" />
+      <span>Play with the computer keyboard<small>Turn off so the letter and number keys stop playing notes. Space and the arrows still work</small></span>
+    </label>
     <dl class="keys">
       <div>
         <dt>C4 to B4</dt>

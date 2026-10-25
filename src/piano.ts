@@ -31,7 +31,8 @@ interface Session {
 }
 
 export class Piano {
-  private buffers: ToneAudioBuffers // the recordings, downloaded once and shared by every session
+  private buffers: ToneAudioBuffers // the Salamander recordings, downloaded once and shared by every session
+  private custom: Record<string, AudioBuffer> | null = null // my own sounds by note name (see sounds.ts), used instead while set
   private session: Session | null = null
   private live: Sampler | null = null // for notes played by hand; never thrown away
   // Everything plays through this, so one slider sets the volume. It starts at the slider's starting point (squared, see setVolume).
@@ -42,8 +43,12 @@ export class Piano {
   }
   private sustain = new Sustain() // the sustain pedal, for notes played by hand
   private next = 0 // index of the next note to queue
-  loaded = false
-  readonly ready: Promise<void> // rejects if the recordings can't be downloaded
+  private defaultLoaded = false
+  // True when there is a sound to play: my own sounds, or the Salamander recordings once they have downloaded.
+  get loaded(): boolean {
+    return this.custom !== null || this.defaultLoaded
+  }
+  readonly ready: Promise<void> // rejects if the Salamander recordings can't be downloaded
 
   // Sync check: how many notes were queued, and how many were queued after they were already due.
   stats = { queued: 0, late: 0, worstLateMs: 0 }
@@ -59,7 +64,7 @@ export class Piano {
       urls: sampleUrls(),
       baseUrl: BASE_URL,
       onload: () => {
-        this.loaded = true
+        this.defaultLoaded = true
         resolve()
       },
       onerror: (error) => reject(error),
@@ -129,6 +134,15 @@ export class Piano {
     }
   }
 
+  // Plays my own sounds (note name to decoded sound, like { C4: ... }) instead of the Salamander piano, or goes back to it
+  // with null. Notes played by hand use the new sound from the next key. The song's own notes already queued still use the old
+  // one, so call reset() after this to queue them again from the current place with the new sound.
+  useSounds(sounds: Record<string, AudioBuffer> | null): void {
+    this.custom = sounds !== null && Object.keys(sounds).length > 0 ? sounds : null
+    this.live?.dispose()
+    this.live = null
+  }
+
   // Silences everything and starts queuing again from `time`. Call after Play, pause, or seek.
   reset(notes: FallingNote[], time: number): void {
     this.endSession()
@@ -138,6 +152,7 @@ export class Piano {
   }
 
   private makeSampler(): Sampler {
+    if (this.custom) return new Sampler({ urls: this.custom, release: 1 })
     const urls: Record<string, ToneAudioBuffer> = {}
     for (const name of Object.keys(sampleUrls())) urls[name] = this.buffers.get(name)
     return new Sampler({ urls, release: 1 })

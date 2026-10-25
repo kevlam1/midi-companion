@@ -419,6 +419,28 @@ export const appHtml = `
       <input type="checkbox" id="show-sustain" class="switch" />
       <span>Sustain label<small>Show a label while the pedal is held</small></span>
     </label>
+    <h3>Piano sound</h3>
+    <div id="sound-choice" class="segmented" role="radiogroup" aria-label="Piano sound">
+      <button data-sound="default" role="radio" aria-checked="true" title="The Salamander Grand Piano that comes with the site">Salamander piano</button>
+      <button data-sound="custom" role="radio" aria-checked="false" title="The sounds you add below, kept on this device" disabled>My sounds</button>
+    </div>
+    <div id="sound-drop" class="drop-box compact" tabindex="0" role="button" aria-describedby="sound-help">
+      ${icons.upload}
+      <strong>Add your own sounds</strong>
+      <span>Drop audio files here, or click to browse</span>
+    </div>
+    <input type="file" id="sound-file" accept="audio/*,.wav,.mp3,.ogg,.m4a,.aac,.flac" multiple hidden />
+    <p id="sound-help" class="muted small">
+      Add audio files with any name, then pick the note each one plays in the list. A note in the name, like C4.wav or F#3.mp3
+      (middle C is C4), is picked for you. One recording is enough: the piano re-pitches it for the notes around it. Your sounds
+      stay in this browser and are never uploaded.
+    </p>
+    <div id="sound-saved" class="sound-saved" hidden>
+      <span id="sound-summary"></span>
+      <button id="sound-clear" class="link" type="button">Remove all</button>
+    </div>
+    <ul id="sound-list" class="sound-list" aria-label="Your sounds and the note each one plays" hidden></ul>
+    <p id="sound-status" class="muted small" role="status"></p>
     <h3>Songs</h3>
     <label class="option-row">
       <input type="checkbox" id="share-song" class="switch" />
@@ -484,7 +506,7 @@ export const appHtml = `
         <span class="hold-fill" aria-hidden="true"></span>
         <span class="hold-label">Hold to reset all settings</span>
       </button>
-      <p id="reset-all-note" class="muted small" role="status">Puts every setting above back to its default. Your songs are kept.</p>
+      <p id="reset-all-note" class="muted small" role="status">Puts every setting above back to its default. Your songs and your own piano sounds are kept.</p>
     </div>
     </div>
   </dialog>

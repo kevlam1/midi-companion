@@ -21,6 +21,17 @@ import {
 import { EARLY, EARLY_CHOICES, LearnSession, groupChords, parseEarly } from './learn.ts'
 import { Score } from './score.ts'
 import {
+  clearSamples,
+  describeImport,
+  describeSamples,
+  importSamples,
+  listSamples,
+  moveSample,
+  noteName,
+  removeSample,
+  type StoredSample,
+} from './sounds.ts'
+import {
   AutoCredit,
   DEFAULT_LIMIT_HIGH,
   DEFAULT_LIMIT_LOW,
@@ -824,7 +835,7 @@ function start(app: HTMLDivElement): void {
   }
   window.addEventListener('dragover', (event) => {
     event.preventDefault() // otherwise the browser would open the file and leave the app
-    if (isFileDrag(event) && !songDialog.open) app.classList.add('dragging')
+    if (isFileDrag(event) && !songDialog.open && !settingsDialog.open) app.classList.add('dragging')
   })
   window.addEventListener('dragleave', (event) => {
     if (event.relatedTarget === null) app.classList.remove('dragging') // the file left the window
@@ -833,6 +844,7 @@ function start(app: HTMLDivElement): void {
     event.preventDefault()
     app.classList.remove('dragging')
     dropZone.classList.remove('over')
+    if (settingsDialog.open) return // a file dropped in Settings is for the sounds box there, never a song
     const file = event.dataTransfer?.files[0]
     if (file) void dropFile(file)
   })
@@ -1627,6 +1639,7 @@ function start(app: HTMLDivElement): void {
         limitCover: parseLimitCover(saved?.limitCover),
         limitShade: saved?.limitShade !== false, // the shading outside the bars, on unless switched off
         limitShadeOpacity: clampLimitShade(saved?.limitShadeOpacity),
+        customSound: saved?.customSound === true, // play my own sounds instead of the Salamander piano, off unless picked
         onlyC: saved?.onlyC === true,
         computerNames: saved?.computerNames === true, // names show the computer keys, not the notes' names
         // Particles on or off is its own switch, so the style is kept while they are off. A browser that saved
@@ -1666,6 +1679,7 @@ function start(app: HTMLDivElement): void {
         limitCover: DEFAULT_LIMIT_COVER,
         limitShade: true,
         limitShadeOpacity: DEFAULT_LIMIT_SHADE,
+        customSound: false,
         onlyC: false,
         computerNames: false,
         particlesOn: true,
@@ -1951,6 +1965,192 @@ function start(app: HTMLDivElement): void {
       saveOptions()
     })
   }
+  // Piano sound: the Salamander piano that comes with the site, or sounds I added myself (see sounds.ts), kept in this browser
+  // and used only while "My sounds" is picked. Each added sound is a row with its file name and a picker for the note it plays.
+  // Adding sounds switches to them. They are decoded the first time they are needed.
+  const soundButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#sound-choice button')
+  const soundDrop = settingsDialog.querySelector<HTMLDivElement>('#sound-drop')!
+  const soundFile = settingsDialog.querySelector<HTMLInputElement>('#sound-file')!
+  const soundSaved = settingsDialog.querySelector<HTMLDivElement>('#sound-saved')!
+  const soundSummary = settingsDialog.querySelector<HTMLSpanElement>('#sound-summary')!
+  const soundClear = settingsDialog.querySelector<HTMLButtonElement>('#sound-clear')!
+  const soundList = settingsDialog.querySelector<HTMLUListElement>('#sound-list')!
+  const soundStatus = settingsDialog.querySelector<HTMLParagraphElement>('#sound-status')!
+  let mySounds: StoredSample[] = [] // what is saved in this browser
+  let decodedSounds: Record<string, AudioBuffer> | null = null // the same, decoded for the piano; null until needed
+  let soundChange = 0 // counts changes, so a slow decode that was overtaken by a newer change is dropped
+
+  const decodeSound = (data: ArrayBuffer): Promise<AudioBuffer> => getContext().decodeAudioData(data)
+
+  function showSoundChoice(): void {
+    const have = mySounds.length > 0
+    const custom = options.customSound && have
+    for (const button of soundButtons) {
+      const wantsCustom = button.dataset.sound === 'custom'
+      button.disabled = wantsCustom && !have // nothing to pick until a sound is added
+      button.setAttribute('aria-checked', String(wantsCustom === custom))
+    }
+    soundSaved.hidden = !have
+    soundList.hidden = !have
+    soundSummary.textContent = describeSamples(mySounds.map((sound) => ({ midi: sound.midi, note: sound.note, bytes: sound.data.byteLength })))
+    soundList.replaceChildren(...mySounds.map(soundRow))
+  }
+
+  // The notes to pick from, grouped by octave, with the sound's own note chosen. (A note off the piano, from a sound saved
+  // some other way, is kept as an extra choice rather than lost.)
+  function noteOptions(current: number): HTMLElement[] {
+    const groups: HTMLElement[] = []
+    if (current < LOWEST || current > HIGHEST) {
+      const option = document.createElement('option')
+      option.value = String(current)
+      option.textContent = noteName(current)
+      option.selected = true
+      groups.push(option)
+    }
+    let group: HTMLOptGroupElement | null = null
+    for (let midi = LOWEST; midi <= HIGHEST; midi++) {
+      if (group === null || midi % 12 === 0) {
+        group = document.createElement('optgroup')
+        group.label = `Octave ${Math.floor(midi / 12) - 1}`
+        groups.push(group)
+      }
+      const option = document.createElement('option')
+      option.value = String(midi)
+      option.textContent = noteName(midi)
+      option.selected = midi === current
+      group.append(option)
+    }
+    return groups
+  }
+
+  // One saved sound: its file name, the note it plays (change it to move the sound), and a button to remove it. The file name
+  // goes in as text, never as HTML, because it comes from my files.
+  function soundRow(sound: StoredSample): HTMLLIElement {
+    const row = document.createElement('li')
+    row.className = 'sound-row'
+    const name = document.createElement('span')
+    name.className = 'sound-file'
+    name.textContent = sound.file
+    name.title = sound.file
+    const note = document.createElement('select')
+    note.className = 'sound-note'
+    note.setAttribute('aria-label', `Note for ${sound.file}`)
+    note.append(...noteOptions(sound.midi))
+    note.addEventListener('change', () => void moveSound(sound, Number(note.value)))
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'link'
+    remove.textContent = 'Remove'
+    remove.setAttribute('aria-label', `Remove ${sound.file}`)
+    remove.addEventListener('click', () => void removeSound(sound))
+    row.append(name, note, remove)
+    return row
+  }
+
+  // Gives the piano the sound that is picked, and queues the song again from here so the notes use it. A sound the browser
+  // can no longer read is left out, and if none can be read the Salamander piano plays and a message says so.
+  async function applySound(): Promise<void> {
+    const change = ++soundChange
+    let sounds: Record<string, AudioBuffer> | null = null
+    if (options.customSound && mySounds.length > 0) {
+      if (decodedSounds === null) {
+        const decoded: Record<string, AudioBuffer> = {}
+        for (const sound of mySounds) {
+          try {
+            decoded[sound.note] = await decodeSound(sound.data.slice(0)) // decoding takes the bytes it is given, so it gets a copy
+          } catch {
+            // left out: it is reported below if nothing is left
+          }
+        }
+        if (change !== soundChange) return
+        decodedSounds = decoded
+      }
+      sounds = Object.keys(decodedSounds).length > 0 ? decodedSounds : null
+      if (sounds === null) soundStatus.textContent = "Your sounds can't be read any more, so the Salamander piano is playing."
+    }
+    piano.useSounds(sounds)
+    resync()
+  }
+
+  // What is saved has changed (a sound was added, moved or removed): read it again, redraw the list, and use it. "My sounds"
+  // can only stay picked while there are some.
+  async function refreshSounds(): Promise<void> {
+    mySounds = await listSamples()
+    decodedSounds = null
+    if (mySounds.length === 0) options.customSound = false
+    saveOptions()
+    showSoundChoice()
+    await applySound()
+  }
+
+  async function addSounds(files: File[]): Promise<void> {
+    if (files.length === 0) return
+    soundStatus.textContent = 'Adding…'
+    const report = await importSamples(files, decodeSound)
+    soundStatus.textContent = describeImport(report) || 'Nothing was added.'
+    if (report.added.length === 0) return
+    options.customSound = true // adding sounds switches to them
+    await refreshSounds()
+  }
+
+  // The note picker of a row was changed: the sound moves to that note, and swaps with the sound already there, if any.
+  async function moveSound(sound: StoredSample, to: number): Promise<void> {
+    const swappedWith = await moveSample(sound.midi, to)
+    soundStatus.textContent = swappedWith ? `${sound.file} and ${swappedWith} swapped notes.` : ''
+    await refreshSounds() // also puts the pickers back in line with what is really saved
+  }
+
+  async function removeSound(sound: StoredSample): Promise<void> {
+    await removeSample(sound.midi)
+    soundStatus.textContent = `Removed ${sound.file}.`
+    await refreshSounds()
+  }
+
+  for (const button of soundButtons) {
+    button.addEventListener('click', () => {
+      options.customSound = button.dataset.sound === 'custom'
+      saveOptions()
+      showSoundChoice()
+      void applySound()
+    })
+  }
+  soundClear.addEventListener('click', async () => {
+    await clearSamples()
+    soundStatus.textContent = 'Removed all your sounds.'
+    await refreshSounds()
+  })
+  soundFile.addEventListener('click', () => {
+    soundFile.value = '' // choosing the same files again still counts
+  })
+  soundFile.addEventListener('change', () => void addSounds(Array.from(soundFile.files ?? [])))
+  soundDrop.addEventListener('click', () => soundFile.click())
+  soundDrop.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      soundFile.click()
+    }
+  })
+  // These stop the drag and drop here, so the page-wide handler (which loads a dropped file as a song) never sees it.
+  soundDrop.addEventListener('dragover', (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    soundDrop.classList.add('over')
+  })
+  soundDrop.addEventListener('dragleave', () => soundDrop.classList.remove('over'))
+  soundDrop.addEventListener('drop', (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    soundDrop.classList.remove('over')
+    void addSounds(Array.from(event.dataTransfer?.files ?? []))
+  })
+  // Reads what is saved when the page opens, and uses it if "My sounds" was picked last time.
+  async function startSounds(): Promise<void> {
+    mySounds = await listSamples()
+    showSoundChoice()
+    if (options.customSound && mySounds.length > 0) await applySound()
+  }
+
   const nameButtons = settingsDialog.querySelectorAll<HTMLButtonElement>('#key-names button')
   const onlyCRow = settingsDialog.querySelector<HTMLLabelElement>('#only-c-row')!
   const onlyCBox = settingsDialog.querySelector<HTMLInputElement>('#only-c')!
@@ -2308,6 +2508,7 @@ function start(app: HTMLDivElement): void {
       limitCover: DEFAULT_LIMIT_COVER,
       limitShade: true,
       limitShadeOpacity: DEFAULT_LIMIT_SHADE,
+      customSound: false,
       onlyC: false,
       computerNames: false,
       particlesOn: true,
@@ -2337,6 +2538,9 @@ function start(app: HTMLDivElement): void {
     computerKeysBox.checked = options.computerKeys
     oneByOneBox.checked = options.oneByOne
     showLimitOptions()
+    showSoundChoice() // my saved sounds are kept, like my songs, but the Salamander piano is picked again
+    soundStatus.textContent = ''
+    void applySound()
     applyHand(true) // the limited range is off again: the song waits for every note
     fitBox.checked = options.fitRange
     showOctaveEditor()
@@ -2979,6 +3183,7 @@ function start(app: HTMLDivElement): void {
   }
 
   requestAnimationFrame(frame)
+  void startSounds() // after everything above is set up, because using my sounds restarts the song's queue
 
   // When MIDI can't be used at all (not supported, blocked, failed), a small "!" button sits next to the Tracks button.
   // On a phone it replaces the long message in the header (style.css), and a tap on it shows the message in a bubble.

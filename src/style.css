@@ -2658,6 +2658,117 @@ html[data-bg-light] #pedal {
   display: none;
 }
 
+/* ---------- Piano sound (Settings): the choice, a box to add my own sounds, and what is saved ---------- */
+.segmented button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.segmented button:disabled:hover {
+  color: var(--text-2);
+}
+
+#sound-drop {
+  flex-direction: column; /* the icon above the text, not squeezed into one row, which wraps badly on a phone */
+  margin-top: 0.8rem;
+  padding: 1.1rem 1rem;
+}
+
+#sound-help {
+  margin: 0.7rem 0 0;
+}
+
+.sound-saved {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.7rem;
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+
+.sound-saved[hidden] {
+  display: none;
+}
+
+/* The saved sounds: a row each with the file name, a note picker and a Remove button. A long list scrolls inside its box. */
+/* Scoped under #settings so they win over its general list rules (an indent, and a gap between items). */
+#settings .sound-list {
+  max-height: 15rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.03);
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+#settings .sound-list[hidden] {
+  display: none;
+}
+
+.sound-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.7rem;
+}
+
+#settings .sound-row + .sound-row {
+  margin-top: 0;
+  border-top: 1px solid var(--line);
+}
+
+.sound-file {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-note {
+  height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.sound-note:hover {
+  border-color: rgb(var(--accent-rgb) / 0.6);
+}
+
+.sound-note option,
+.sound-note optgroup {
+  background: #1c1c27;
+  color: var(--text);
+}
+
+.sound-row .link {
+  font-size: 0.8rem;
+}
+
+#sound-status {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+#sound-status:empty {
+  margin: 0; /* no gap while there is nothing to say */
+}
+
 /* ---------- Set octave range (Settings) ---------- */
 /* Nine octave tiles with a window over them. Drag the window's edges to size it, or its middle to move it. */
 #range-editor {

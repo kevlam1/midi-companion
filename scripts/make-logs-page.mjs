@@ -112,6 +112,20 @@ function dayLabel(date) {
   return `${part({ weekday: 'long' })} ${part({ day: 'numeric' })} ${part({ month: 'long' })}`
 }
 
+// "12 to 24 October 2026": the first and last day in the log. If they are in different months, both months are named.
+function dateRange(dates) {
+  const sorted = [...dates].sort()
+  const first = sorted[0]
+  const last = sorted[sorted.length - 1]
+  const part = (date, options) => new Intl.DateTimeFormat('en-US', options).format(new Date(`${date}T12:00:00`))
+  const day = (date) => part(date, { day: 'numeric' })
+  const month = (date) => part(date, { month: 'long' })
+  const year = (date) => part(date, { year: 'numeric' })
+  return month(first) === month(last)
+    ? `${day(first)} to ${day(last)} ${month(last)} ${year(last)}`
+    : `${day(first)} ${month(first)} to ${day(last)} ${month(last)} ${year(last)}`
+}
+
 function entryHtml({ id, badge, title, summary, lines }) {
   const body = renderBlock(lines)
   checks.push([title, lines, body])
@@ -181,6 +195,7 @@ for (const [name, lines, html] of checks) {
 // string as patterns, and the log has text like ${...} in it, which once pasted half the template into the page.
 const parts = {
   COUNT: String(numbered.length),
+  DATES: dateRange(numbered.map((section) => section.date)),
   TOC: tocHtml,
   SETOUT: setOutHtml,
   BUILD: buildHtml,

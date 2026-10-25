@@ -26,6 +26,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - **Fit piano to .midi.** A switch that shows only the octaves a song actually uses, from its lowest note to its highest, so the keys are wider. A song that stays in octaves 3 to 6 shows just those, for the whole song.
 - **Display set octave range.** Pick the octaves yourself, in every mode. A strip of nine octave tiles has a window you drag by its edges to size it or by its middle to move it, and the piano changes as you drag. It takes priority over Fit piano to .midi.
 - **Particles.** Eight styles fly from each key as it lights up, all with a soft glow: Sparks, glowing Embers that cool as they rise, blinking Fireflies, twinkling Stars, Bubbles, Confetti, Stardust glitter and long light Streaks. Sliders set the intensity (25% to 200%) and how high they travel (50% to 300%), a switch keeps them in a tight column above their key (on by default), and they take each hand's note color unless you pick your own for each hand. Every note gets its particles, even in a dense song. Embers at 150% are on from the start.
+- **Your own piano sound.** In Settings, add your own audio files (any file name works) and play the piano and the songs with them instead of the built-in Salamander piano. Each sound has a note picker, like `FILENAME.wav [C4]`, and a note in the name, like `C4.wav`, picks it for you. One recording is enough: the piano re-pitches it for the keys around it. Pick a note another sound has and the two swap. Your sounds stay in your browser: nothing is uploaded.
 - **Clear the header.** Hide the tempo, note count, MIDI keyboard and Sustain chips one by one.
 - **Settings in groups.** Colors, Lights, Particles, Key names, Piano range, Learn timing, Learn options, Header chips, Songs and Computer keyboard, so related switches sit together.
 - Everything is remembered in your browser, and a button at the bottom of Settings resets it all if you hold it down.
@@ -55,6 +56,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 ## Known limits
 - MIDI keyboards need a browser with Web MIDI (Chrome, Edge or Firefox, on `https` or `localhost`). Safari doesn't have it, but the on-screen keys and the computer keyboard still work.
 - "Your own folder" needs Chrome or Edge.
+- Which audio files can be added as your own sounds depends on your browser's own decoder. A file the browser can't read is left out, with a message.
 - The sound and the picture are in sync on the computer it was built on. Speaker delay isn't reported by the browser, so it isn't corrected for.
 - Which track is the right hand is a guess from pitch, so a song with crossing hands may need its tracks switched in the Tracks popup.
 
@@ -78,7 +80,7 @@ node scripts/make-test-midi.mjs
 
 It writes `test-files/c-major-scale.mid`. Loading it on the page should show exactly those 8 notes.
 
-`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, the limited octave range, colors, the computer keyboard, the clock, the sustain pedal, the song history, tempo and beats, the folder picker, and particles).
+`node scripts/make-edge-midis.mjs` writes six more small songs for the cases real songs rarely cover (two hands, three tracks, repeated notes, drum and out-of-range notes, crossing hands). It also prints what the page should show for each one. The `node scripts/test-*.mjs` files check the logic that has no browser code (Learn mode, the limited octave range, your own sounds, colors, the computer keyboard, the clock, the sustain pedal, the song history, tempo and beats, the folder picker, and particles).
 
 Songs that are fine to share can go in the `samplesongs/` folder, which is committed and shows up in the song popup for everyone. A `songs/` folder is gitignored, for private files, since MIDI arrangements are often copyrighted.
 

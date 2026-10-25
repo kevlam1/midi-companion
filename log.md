@@ -888,6 +888,32 @@ I started Friday's plan early.
 
 ---
 
+## 35. Playing the piano with my own sounds (2026-10-24)
+
+**What I asked for**
+- Asked whether users could submit their own sound samples, stored locally. Claude checked how the piano loads its sound (and what Tone.js accepts) before answering that it could, then I asked it to build it and keep it clean.
+- The first version needed every file to be named for its note (like `C4.wav`). After I tried it I asked for a better way: add a sound with any name and pick its note in the site, like `FILENAME.wav [C4]`, with the note selectable.
+
+**What changed**
+- `sounds.ts` (new, with `scripts/test-sounds.mjs`): works out which piano key each added file goes on, and keeps the files in this browser (IndexedDB), at most 8 MB a file and 60 MB in all. A note in the name (`C4.wav`, `F#3.mp3`, `Db2.ogg`) picks the key. A file with no note in its name goes on the free key nearest middle C, and a message says so. There is one sound for each key.
+- `store.ts` (new): a small helper for IndexedDB. `history.ts` and `folder.ts` still have their own copies of the same lines. I left them alone.
+- `piano.ts`: it can play my sounds instead of the Salamander recordings (`useSounds`), and `loaded` is now a property that says whether any sound is ready.
+- A new "Piano sound" group in Settings: a choice between the Salamander piano and My sounds, a box to drop or choose audio files, and a list with a row for each sound: its file name, a picker for the note (all 88 piano notes, grouped by octave), and Remove. Picking a note that another sound already has swaps the two. Remove all clears them. Adding sounds switches to them, and removing the last one goes back to Salamander. The reset button goes back to Salamander but keeps my sounds, like my songs.
+- A file dropped in Settings no longer loads as a song: the page-wide drop handler stands down while Settings is open.
+
+**What I checked**
+- `npm run build`, the strict type-check and all eleven test scripts pass. `test-sounds.mjs` covers reading notes from file names, where each file goes, moving and swapping, the size limits and the wording.
+- Claude drove headless Chrome with test sounds of different lengths (0.2, 0.3 and 0.7 seconds) and recorded which recording each note started. The keys and a song in Autoplay used the right sounds. Picking a note moved a sound, picking a taken note swapped two, Remove worked, switching to Salamander mid-song changed the notes after it, and everything survived a reload. A file name with HTML in it shows as plain text. There is no sideways overflow at phone width.
+- Not checked: how it sounds (Claude can't listen), Firefox and Safari (they can read different file types than Chrome), a real phone, and the size limits with real large files.
+
+**Decisions**
+- A file with no note in its name is put on a free key near middle C instead of being refused, so any file can be added.
+- Picking a note that another sound has swaps the two, so no sound is lost and no key ever has two.
+- The piano plays at one loudness, like the Salamander recordings, so a harder press is only louder.
+- A play button on each row, to hear which note it is, is not built.
+
+---
+
 ## Where AI misread me, or I had to correct course
 
 **Claude**
@@ -958,6 +984,11 @@ I started Friday's plan early.
 - **The logs page pasted its own script into itself (Claude's bug, found by the browser test):** the script that builds the page filled the template with `String.replace`, which treats `$'` and `` $` `` in the replacement text as patterns. This log has text like `${...}` in it, so a copy of part of the template, including the page's script, ended up inside the page. Every button then toggled twice and did nothing, while Expand all worked. Claude's check that every word of the log was on the page ran before that step and passed, so it did not see it. It found the bug from the test failing, counted two scripts in the page where there should be one, and fixed it by filling the template with functions. The script now also checks that the page is exactly the template plus the pieces, with one script.
 - **The dock was three rows on phones (Claude caught it from screenshots):** the score didn't fit, so it moved to the bottom row beside the seek slider. Its "1×" combo also looked like the speed chip, so on phones it is stacked as a number over COMBO.
 
+- **Sounds had to be renamed to their notes (I asked for better):** Claude's first version of "my own sounds" made me rename every file to its note. I asked for a note picker in the site instead, and Claude rebuilt it as a list where each sound has its own picker.
+- **Wrong checks in my sounds tests (Claude's):** one check expected a saved option to read `false` after the reset button, but the reset deletes it. Another switched the sound after opening Settings, which takes about a second, so the note it was waiting for had already played. Both were mistakes in the test, not in the app, and Claude found them from the output. It also wrote a half-finished test file with a wrong expected value while still working it out, and rewrote the whole file before running anything.
+- **Layout slips (Claude's, found in screenshots):** the drop box for sounds was squeezed into one row, an empty status line left a gap, and the rows of the list were indented because Settings has a general list rule that beats a plain class. Claude fixed each one.
+- **A cleanup that never finished (Claude's):** a permission prompt closed in the middle of my cleanup step, so my test server and some temp files were left behind until the next turn. Claude noticed by checking what was running, stopped only its own server, and deleted its own files.
+
 **My own mistakes**
 - Nothing yet.
 
@@ -1008,3 +1039,7 @@ I started Friday's plan early.
 - Added a build log page at `/logs/` for my portfolio to link to, with one sentence for each log section. Nothing in the app links to it, and it asks search engines to skip it. That only hides it: anyone with the link can open it.
 - Made each entry on that page open to show its full text from this log, with a Contents dropdown, like my Portfolio's log page. I first made it a hand-written page, then replaced that with a script (`scripts/make-logs-page.mjs`) that builds it from this file, so the page can't drift from the log. It stops if a section has no one-sentence summary or if any word of this log is missing from the page. A new log section needs its sentence added to `scripts/log-summaries.mjs`, and then the script run again.
 - Considered sorting the sample songs by file size, which needs no reading of the files. Chose the real note count (the same count as when a song is opened), since file size isn't the same thing.
+- Considered requiring a note in the name of every sound I add. Changed it to a note picker for each sound, so any file name works.
+- Considered a file with no note in its name being refused. Chose to put it on a free key near middle C and say so.
+- Considered moving `history.ts` and `folder.ts` onto the new `store.ts` helper. Left them alone: they work and are tested.
+- Considered a play button on each sound's row to hear it. Not built.

@@ -37,6 +37,7 @@ export const SUMMARIES = {
   32: 'I added a "!" button that explains MIDI problems on phones, shrank the dock and welcome card, and checked it on my real phone for the first time.',
   33: 'I made the menus fit short windows, made the octave window work with touch, and added particles that fly from the keys.',
   34: 'I added a Learn score, a limited octave range for smaller keyboards, regrouped Settings, added colors, and softened the key glow.',
+  35: 'I added a Piano sound setting where I can add my own sound files with any name, pick the note each one plays, and use them instead of the Salamander piano.',
   misread: 'Every time Claude got something wrong or I had to correct course, and what happened next.',
   decisions: 'The options I weighed and the ideas I dropped, in the order they came up.',
 }

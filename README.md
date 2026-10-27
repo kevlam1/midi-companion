@@ -58,7 +58,7 @@ Built for TCSS 490 (Artifact 2). Live site: <https://midi-companion.vercel.app>
 - "Your own folder" needs Chrome or Edge.
 - Which audio files can be added as your own sounds depends on your browser's own decoder. A file the browser can't read is left out, with a message.
 - The sound and the picture are in sync on the computer it was built on. Speaker delay isn't reported by the browser, so it isn't corrected for.
-- Which track is the right hand is a guess from pitch, so a song with crossing hands may need its tracks switched in the Tracks popup.
+- Which track is the right hand is a guess from pitch, so a song whose hands cross may get the wrong hand assigned. The Tracks popup can switch tracks off but can't swap the hands.
 
 ## Run it locally
 You need Node.js (the project was built on Node 24).
